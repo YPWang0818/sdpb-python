@@ -26,9 +26,9 @@ jobs:
       # API reference builds without SDPB's C++ tool chain.
       - run: pip install sphinx myst-parser furo sphinx-copybutton mpmath
       - run: sphinx-build -W --keep-going -b html docs docs/_build/html
+      # Pages must be enabled once in the repository settings
+      # (Settings -> Pages -> Source: "GitHub Actions").
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/_build/html
