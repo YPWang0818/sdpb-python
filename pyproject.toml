@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=64", "wheel", "Cython>=3.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sdpb-python"
+version = "0.1.0"
+description = "Python bindings (Cython) for a fork of SDPB, the semidefinite program solver"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Yi-Ping Wang" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "Cython>=3.0"]
+
+[project.urls]
+Homepage = "https://github.com/YPWang0818/sdpb-python"
+"SDPB fork" = "https://github.com/YPWang0818/sdpb"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sdpb_python = ["*.pxd", "*.pyx", "cpp/*.hxx"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

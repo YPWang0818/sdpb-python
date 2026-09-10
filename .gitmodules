@@ -1,0 +1,3 @@
+[submodule "c-src/sdpb"]
+	path = c-src/sdpb
+	url = https://github.com/YPWang0818/sdpb
