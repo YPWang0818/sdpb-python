@@ -9,7 +9,7 @@ description = "Python bindings (Cython) for a fork of SDPB, the semidefinite pro
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Yi-Ping Wang" }]
+authors = [{ name = "Yu-Ping Wang" }]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: C++",

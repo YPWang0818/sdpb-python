@@ -26,14 +26,17 @@ semidefinite program solver used in the conformal bootstrap.
    ```
    git clone --recurse-submodules <this repo>
    ```
-2. Install SDPB's dependencies (see `c-src/sdpb/Install.md`): MPI, Elemental,
-   Boost, GMP, MPFR, FLINT, libarchive, libxml2, RapidJSON, MPSolve, CBLAS.
+2. Install SDPB's dependencies (see `docs/BUILDING.md` for a tested Ubuntu 24.04
+   recipe, or `c-src/sdpb/Install.md`): MPI, Elemental, Boost, GMP, MPFR, FLINT,
+   libarchive, libxml2, RapidJSON, MPSolve, CBLAS.
 3. Build SDPB with waf and install the package:
    ```
    scripts/build_sdpb.sh [waf configure options, e.g. --elemental-dir=...]
    ```
-   `setup.py` reads the include/library flags waf discovered from
-   `c-src/sdpb/build/c4che/_cache.py`, so pass any dependency paths to waf.
+   The script configures waf with `-fPIC` (needed to link SDPB's static
+   libraries into a Python extension) and `setup.py` reads the include/library
+   flags waf discovered from `c-src/sdpb/build/c4che/_cache.py`, so pass any
+   extra dependency paths to waf via the script's arguments.
 
 ## Usage
 

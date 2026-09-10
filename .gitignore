@@ -16,3 +16,6 @@ src/sdpb_python/*.c
 # Editors
 .vscode/
 .idea/
+
+# build logs
+*.log

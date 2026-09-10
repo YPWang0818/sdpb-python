@@ -67,6 +67,15 @@ include_dirs = [
     *collect(env, "INCLUDES"),
 ]
 library_dirs = [str(SDPB_BUILD), *collect(env, "LIBPATH"), *collect(env, "STLIBPATH")]
+runtime_library_dirs = collect(env, "RPATH")
+
+
+def parse_define(d: str) -> tuple:
+    name, _, value = d.partition("=")
+    return (name, value or None)
+
+
+waf_defines = [parse_define(d) for d in collect(env, "DEFINES") + list(env.get("DEFINES", []))]
 
 # Static libs built by waf (order matters for static linking) plus external libs.
 sdpb_static_libs = ["sdp_solve", "pmp2sdp_lib", "sdpb_util"]
@@ -77,10 +86,16 @@ if not env:
                   "boost_date_time", "boost_serialization", "boost_iostreams",
                   "gmpxx", "gmp", "mpfr", "flint", "archive", "xml2", "mps"]
 
+
+def rel(path: Path) -> str:
+    """setuptools requires source paths relative to setup.py."""
+    return os.path.relpath(path, ROOT).replace(os.sep, "/")
+
+
 # SDPB's ``sdpb`` executable sources (minus main.cxx) are compiled straight into the
 # extension, since waf only builds them into the binary, not into a library.
 sdpb_program_sources = [
-    str(SDPB_SRC / "src" / "sdpb" / f)
+    rel(SDPB_SRC / "src" / "sdpb" / f)
     for f in ("solve.cxx", "write_timing.cxx", "SDPB_Parameters.cxx", "save_solution.cxx")
 ]
 
@@ -88,18 +103,20 @@ extensions = [
     Extension(
         "sdpb_python._sdpb",
         sources=[
-            str(PKG / "_sdpb.pyx"),
-            str(PKG / "cpp" / "sdpb_wrapper.cxx"),
+            rel(PKG / "_sdpb.pyx"),
+            rel(PKG / "cpp" / "sdpb_wrapper.cxx"),
             *sdpb_program_sources,
         ],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
+        runtime_library_dirs=runtime_library_dirs,
         libraries=libraries,
         language="c++",
         extra_compile_args=["-std=c++17", "-O3", "-Wall"],
         define_macros=[
             ("OMPI_SKIP_MPICXX", None),
             ("SDPB_VERSION_STRING", f'"{sdpb_version()}"'),
+            *waf_defines,
         ],
     )
 ]
