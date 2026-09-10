@@ -39,7 +39,6 @@ source_suffix = {".md": "markdown", ".rst": "restructuredtext"}
 
 html_theme = "furo"
 html_title = "sdpb-python"
-html_static_path = ["_static"]
 html_theme_options = {
     "source_repository": "https://github.com/YPWang0818/sdpb-python",
     "source_branch": "main",
