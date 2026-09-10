@@ -14,7 +14,7 @@ from tests.util.datasets import DATA, TEST_PRECISION, STANDARD_ARGS
 from tests.util.subproc import REPO
 
 ONE_D = DATA / "1d" / "input" / "pmp.json"
-ENV = {**os.environ, "PYTHONPATH": f"{REPO / 'src'}{os.pathsep}{REPO}"}
+ENV = {**os.environ, "PYTHONPATH": f"{REPO}{os.pathsep}{os.environ.get('PYTHONPATH', '')}"}
 ENV.pop("DISPLAY", None)
 
 
@@ -29,7 +29,9 @@ def test_two_ranks_rejected(sdpb_ext):
         "    print('REJECTED:', e); raise SystemExit(3)\n"
         "print('SOLVED')\n"
     )
-    proc = subprocess.run(["mpirun", "--oversubscribe", "-n", "2", sys.executable, "-c", code],
+    version = subprocess.run(["mpirun", "--version"], capture_output=True, text=True).stdout
+    oversubscribe = ["--oversubscribe"] if "Open MPI" in version else []
+    proc = subprocess.run(["mpirun", *oversubscribe, "-n", "2", sys.executable, "-c", code],
                           capture_output=True, text=True, timeout=300, env=ENV, cwd=REPO)
     assert "REJECTED: sdpb_python supports a single MPI rank" in proc.stdout, proc.stdout + proc.stderr[-2000:]
     assert "SOLVED" not in proc.stdout

@@ -40,3 +40,19 @@ sdpb_python = ["*.pxd", "*.pyx", "cpp/*.hxx"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 markers = ["slow: long-running end-to-end datasets (enable with --run-slow)"]
+
+[tool.cibuildwheel]
+build = ["cp310-*", "cp311-*", "cp312-*", "cp313-*"]
+skip = ["*-musllinux_*", "*_i686"]
+archs = ["x86_64"]
+manylinux-x86_64-image = "ghcr.io/ypwang0818/sdpb-python-deps:manylinux_2_28"
+before-all = "bash {project}/scripts/cibw_before_all.sh {project}"
+test-requires = ["pytest", "mpmath", "numpy", "sympy"]
+# -o pythonpath= keeps the source tree off sys.path so the installed wheel is tested.
+test-command = "cd {project} && python -m pytest -q -x -o pythonpath= tests"
+
+[tool.cibuildwheel.environment]
+PATH = "/opt/deps/bin:$PATH"
+LD_LIBRARY_PATH = "/opt/deps/lib:/opt/deps/lib64"
+CC = "mpicxx"
+CXX = "mpicxx"

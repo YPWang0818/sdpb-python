@@ -24,7 +24,7 @@ def run_at_precision(bits: int, func_path: str, *args, timeout: int = 3600) -> s
         f"import {module} as m\n"
         f"m.{func}(*{args!r})\n"
     )
-    env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(REPO / "src"), str(REPO),
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(REPO),
                                                                       os.environ.get("PYTHONPATH", "")]))}
     env.pop("DISPLAY", None)
     proc = subprocess.run([sys.executable, "-c", code], cwd=REPO, capture_output=True, text=True,

@@ -1,9 +1,33 @@
 # Installation
 
-sdpb-python compiles SDPB and links it into a Python extension, so it needs
-SDPB's full C++ tool chain. There are no binary wheels.
+## Binary wheels (Linux x86_64)
 
-## Requirements
+Each release on GitHub carries self-contained wheels for CPython 3.10 to
+3.13 on Linux x86_64 (glibc 2.28 or newer, i.e. any mainstream distribution
+from 2019 on). They bundle SDPB and every library it needs, so nothing has to
+be compiled:
+
+```
+pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.2.0/sdpb_python-0.2.0-cp312-cp312-manylinux_2_28_x86_64.whl
+```
+
+Pick the file matching your Python version from the release page. Two things
+to know about the wheels:
+
+- They contain their own MPI library (MPICH), used only to initialise SDPB's
+  single-process solver. Do not load another MPI in the same process, for
+  example `mpi4py` built against OpenMPI.
+- They are built with a portable OpenBLAS and generic x86_64 code; a native
+  build tuned for your CPU can be somewhat faster.
+
+For other platforms, or to work on the C++ side, build from source as below.
+
+## Building from source
+
+sdpb-python compiles SDPB and links it into a Python extension, so it needs
+SDPB's full C++ tool chain.
+
+### Requirements
 
 - Python 3.10 or newer, with `mpmath`.
 - A C++17 compiler and an MPI implementation (`mpicxx`), Boost, GMP with C++
@@ -15,7 +39,7 @@ SDPB's full C++ tool chain. There are no binary wheels.
 {doc}`building` is a tested, step-by-step recipe for Ubuntu 24.04; SDPB's own
 `Install.md` in the submodule covers other systems and HPC sites.
 
-## Steps
+### Steps
 
 1. Clone with the SDPB submodule (it follows the fork's `python-api` branch):
 
@@ -49,14 +73,14 @@ SDPB's full C++ tool chain. There are no binary wheels.
    pytest
    ```
 
-## Optional extras
+### Optional extras
 
 - `numpy`: matrices for {class}`~sdpb_python.LMI` can be arrays.
 - `sympy`: {meth}`Polynomial.from_sympy <sdpb_python.Polynomial.from_sympy>`.
 - Documentation: `pip install sphinx myst-parser furo sphinx-copybutton`, then
   `sphinx-build -b html docs docs/_build/html`.
 
-## Notes
+### Notes
 
 - If MPI programs print `Authorization required, but no authorization protocol
   specified`, that is X11 noise caused by a set `DISPLAY`; `unset DISPLAY`
@@ -64,3 +88,15 @@ SDPB's full C++ tool chain. There are no binary wheels.
 - The build links SDPB statically into the extension; the Elemental and
   MPSolve shared libraries are found through an rpath, so they must stay where
   they were at build time.
+
+## How the wheels are made
+
+`.github/workflows/deps-image.yml` builds a `manylinux_2_28` Docker image with
+MPICH, GMP, MPFR, FLINT, Boost, OpenBLAS, the Elemental fork and MPSolve
+installed under `/opt/deps` (`docker/deps.Dockerfile`) and pushes it to
+`ghcr.io/ypwang0818/sdpb-python-deps`. `.github/workflows/wheels.yml` then runs
+`cibuildwheel` in that image on every `v*` tag: it builds SDPB's static
+libraries once, builds the extension for each Python version, repairs the
+wheels so they bundle every shared library, runs the test-suite inside each,
+and attaches them to the GitHub release. The same image can be pulled locally
+to reproduce a build.

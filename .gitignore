@@ -22,3 +22,6 @@ src/sdpb_python/*.c
 
 # documentation build
 docs/_build/
+
+# cibuildwheel output
+wheelhouse/

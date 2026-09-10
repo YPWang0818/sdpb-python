@@ -30,10 +30,19 @@ semidefinite program solver used in the conformal bootstrap.
 └── tests/                    # pytest suite mirroring SDPB's own tests
 ```
 
+## Install a wheel
+
+Releases include self-contained wheels for Linux x86_64 and CPython 3.10 to
+3.13; pick the file for your Python version on the
+[releases page](https://github.com/YPWang0818/sdpb-python/releases) and
+`pip install` its URL. They bundle SDPB and all its libraries, including a
+private MPICH: do not load a second MPI (e.g. `mpi4py`) in the same process.
+
 ## Clone and build
 
-The SDPB sources are a git submodule pinned to the fork's `python-api` branch,
-so clone with submodules:
+To build from source (other platforms, or to work on the C++ side): the SDPB
+sources are a git submodule pinned to the fork's `python-api` branch, so
+clone with submodules:
 
 ```
 git clone --recurse-submodules git@github.com:YPWang0818/sdpb-python.git
