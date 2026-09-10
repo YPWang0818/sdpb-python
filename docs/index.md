@@ -62,3 +62,8 @@ design
 
 Not covered (yet): multi-rank MPI runs, the `spectrum` and `approx_objective`
 tools, and SDPB's Mathematica and XML input formats.
+
+## License
+
+MIT, like SDPB itself. See the `LICENSE` file and the README for the
+licenses of the linked libraries.

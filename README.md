@@ -156,3 +156,14 @@ pytest
 
 Tests that need the compiled extension are skipped when it is not built. The
 long end-to-end datasets (SingletScalar) run with `pytest --run-slow`.
+
+## License
+
+sdpb-python is released under the [MIT License](LICENSE), the same license
+as SDPB itself. The SDPB fork in `c-src/sdpb` keeps its own MIT license and
+copyright (David Simmons-Duffin and contributors). The compiled extension
+links dynamically against Elemental (BSD-2), GMP and MPFR (LGPL), FLINT
+(LGPL-2.1+), Boost (BSL-1.0), libarchive (BSD-2), libxml2 (MIT) and a CBLAS
+such as OpenBLAS (BSD-3); these are not distributed with this repository.
+MPSolve (GPL-3) is needed to build SDPB's `spectrum` tool but is not linked
+into the Python extension.

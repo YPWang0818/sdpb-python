@@ -48,10 +48,17 @@ def waf_cache() -> dict:
     return {k: v for k, v in env.items() if not k.startswith("__")}
 
 
+# MPSolve (GPL-3) is used only by SDPB's `spectrum` tool, which the extension
+# does not include, so it is neither linked nor needed at run time.
+EXCLUDED_PACKAGES = {"mpsolve"}
+
+
 def collect(env: dict, prefix: str) -> list:
     out: list = []
     for key, value in env.items():
         if key.startswith(prefix + "_") and isinstance(value, list):
+            if key[len(prefix) + 1:] in EXCLUDED_PACKAGES:
+                continue
             for item in value:
                 if item not in out:
                     out.append(item)
@@ -84,7 +91,7 @@ if not env:
     # Reasonable defaults when the waf cache is unavailable.
     libraries += ["El", "boost_filesystem", "boost_system", "boost_program_options",
                   "boost_date_time", "boost_serialization", "boost_iostreams",
-                  "gmpxx", "gmp", "mpfr", "flint", "archive", "xml2", "mps"]
+                  "gmpxx", "gmp", "mpfr", "flint", "archive", "xml2"]
 
 
 def rel(path: Path) -> str:
