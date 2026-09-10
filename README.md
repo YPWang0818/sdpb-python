@@ -6,37 +6,85 @@ semidefinite program solver used in the conformal bootstrap.
 ## Layout
 
 ```
-├── .gitmodules
-├── pyproject.toml            # package metadata, build requirements
-├── setup.py                  # Cython extension build (links SDPB static libs)
-├── c-src/sdpb/               # SDPB fork, git submodule
-├── src/sdpb_python/          # importable package (hyphens are not allowed in module names)
-│   ├── __init__.py
-│   ├── solver.py             # high-level solve() / SDPBResult
-│   ├── _sdpb.pyx             # Cython module
-│   ├── sdpb_wrapper.pxd      # extern declarations
+├── .gitmodules               # submodule c-src/sdpb tracks the fork's python-api branch
+├── pyproject.toml            # package metadata, build requirements (setuptools + Cython)
+├── setup.py                  # builds the extension against SDPB's static libraries
+├── c-src/sdpb/               # SDPB fork (git submodule), built with waf
+├── src/sdpb_python/          # the package (hyphens are not allowed in module names)
+│   ├── problem.py            # PMP, PolynomialMatrix, Polynomial, DampedRational
+│   ├── lmi.py                # LMI
+│   ├── handle.py             # Solver handle (repeated runs, warm starts, checkpoints)
+│   ├── options.py            # SolverOptions
+│   ├── solution.py           # Solution, TerminateReason
+│   ├── io.py                 # read_pmp_json / write_pmp_json
+│   ├── numbers.py            # mpmath <-> decimal strings
+│   ├── solver.py             # legacy CLI passthrough (solve_dir)
+│   ├── _sdpb.pyx, sdpb_wrapper.pxd   # Cython layer
 │   └── cpp/sdpb_wrapper.*    # C++ shim over SDPB
-├── scripts/build_sdpb.sh
-└── tests/
+├── scripts/build_sdpb.sh     # waf configure + build + pip install -e .
+├── docs/                     # BUILDING.md (dependency recipe), API_DESIGN.md
+└── tests/                    # pytest suite mirroring SDPB's own tests
 ```
 
-## Build
+## Clone and build
 
-1. Clone with submodules:
-   ```
-   git clone --recurse-submodules <this repo>
-   ```
-2. Install SDPB's dependencies (see `docs/BUILDING.md` for a tested Ubuntu 24.04
-   recipe, or `c-src/sdpb/Install.md`): MPI, Elemental, Boost, GMP, MPFR, FLINT,
-   libarchive, libxml2, RapidJSON, MPSolve, CBLAS.
-3. Build SDPB with waf and install the package:
-   ```
-   scripts/build_sdpb.sh [waf configure options, e.g. --elemental-dir=...]
-   ```
-   The script configures waf with `-fPIC` (needed to link SDPB's static
-   libraries into a Python extension) and `setup.py` reads the include/library
-   flags waf discovered from `c-src/sdpb/build/c4che/_cache.py`, so pass any
-   extra dependency paths to waf via the script's arguments.
+The SDPB sources are a git submodule pinned to the fork's `python-api` branch,
+so clone with submodules:
+
+```
+git clone --recurse-submodules git@github.com:YPWang0818/sdpb-python.git
+cd sdpb-python
+# if you already cloned without --recurse-submodules:
+git submodule update --init --recursive
+```
+
+### 1. Dependencies
+
+SDPB needs a C++17 compiler, MPI, Boost, GMP, MPFR, FLINT, libarchive,
+libxml2, RapidJSON, a CBLAS, plus the
+[bootstrap-collaboration fork of Elemental](https://gitlab.com/bootstrapcollaboration/elemental)
+and [MPSolve](https://github.com/robol/MPSolve), which are usually built from
+source. `docs/BUILDING.md` is a tested step-by-step recipe for Ubuntu 24.04
+that installs the source-built libraries to `~/install`; SDPB's own
+`c-src/sdpb/Install.md` covers other systems.
+
+### 2. Python environment
+
+```
+python3 -m venv .venv && source .venv/bin/activate
+pip install setuptools wheel Cython mpmath pytest      # numpy, sympy optional
+```
+
+### 3. Build SDPB and the extension
+
+```
+scripts/build_sdpb.sh
+```
+
+The script runs `waf configure` with `-fPIC` (SDPB's static libraries are
+linked into a Python shared object), `waf build`, and then
+`pip install --no-build-isolation -e .`. It looks for Elemental and MPSolve
+under `$DEPS_PREFIX` (default `~/install`); extra arguments go to
+`waf configure`, and `JOBS` sets the build parallelism:
+
+```
+DEPS_PREFIX=/opt/sdpb-deps JOBS=4 scripts/build_sdpb.sh --flint-dir=/opt/flint
+```
+
+`setup.py` reads the include and library flags waf discovered from
+`c-src/sdpb/build/c4che/_cache.py`, so the extension links exactly what SDPB
+was configured with. Set `CC=mpicxx CXX=mpicxx` if you run `pip install`
+yourself.
+
+### 4. Check
+
+```
+python -c "import sdpb_python; print(sdpb_python.sdpb_version())"
+pytest                              # about a minute; SDPB's own suite: c-src/sdpb/test/run_all_tests.sh
+```
+
+If MPI programs print "Authorization required, but no authorization protocol
+specified", that is X11 noise from a set `DISPLAY`; `unset DISPLAY` silences it.
 
 ## Usage
 

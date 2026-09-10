@@ -35,10 +35,15 @@ make -j4 && make install
 ## 4. SDPB and the Python package
 
 ```
-python -m venv .venv && source .venv/bin/activate
-pip install setuptools wheel Cython pytest
+git clone --recurse-submodules git@github.com:YPWang0818/sdpb-python.git
+cd sdpb-python
+python3 -m venv .venv && source .venv/bin/activate
+pip install setuptools wheel Cython mpmath pytest
 scripts/build_sdpb.sh
 ```
+
+The submodule `c-src/sdpb` follows the fork's `python-api` branch (a few
+patches over upstream master, see `API_DESIGN.md` §6).
 
 The script configures waf with `CXXFLAGS=-fPIC` (required to link the static
 libraries into a Python shared object), builds SDPB, then runs
