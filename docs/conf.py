@@ -6,8 +6,8 @@ import sys
 sys.path.insert(0, os.path.abspath("../src"))
 
 project = "sdpb-python"
-author = "Yi-Ping Wang"
-copyright = "2026, Yi-Ping Wang"
+author = "YPWang0818"
+copyright = "2026, YPWang0818"
 release = "0.2.0"
 
 extensions = [
