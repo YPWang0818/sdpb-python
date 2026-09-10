@@ -37,7 +37,7 @@ def test_solve_1d(sdpb_ext, tmp_path):
     expected = SDPBResult.from_dir(ONE_D / "out")
     out_dir = tmp_path / "out"
 
-    result = sdpb_python.solve(ONE_D / "sdp", out_dir, **SOLVER_OPTIONS)
+    result = sdpb_python.solve_dir(ONE_D / "sdp", out_dir, **SOLVER_OPTIONS)
 
     assert result.optimal
     assert result.terminate_reason == expected.terminate_reason

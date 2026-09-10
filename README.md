@@ -40,14 +40,37 @@ semidefinite program solver used in the conformal bootstrap.
 
 ## Usage
 
-```python
-import sdpb_python
+Numbers are exchanged as `mpmath.mpf`; inputs accept `int`, `float`, `str`,
+`Fraction` or `mpf`.
 
-result = sdpb_python.solve("path/to/sdp", "path/to/out", precision=768)
-print(result.terminate_reason, result.primal_objective)
+```python
+import mpmath
+import sdpb_python as sdpb
+
+sdpb.set_precision(768)   # once per process (SDPB's Elemental fixes it on first use)
+
+# maximize -y  s.t.  1 + x^4 + y (x^4/12 + x^2) >= 0 for x >= 0   (SDPB manual, 1d)
+pmp = sdpb.PMP(
+    objective=[0, -1], normalization=[1, 0],
+    matrices=[sdpb.PolynomialMatrix([[[sdpb.Polynomial([1, 0, 0, 0, 1]),
+                                       sdpb.Polynomial([0, 0, 1, 0, mpmath.mpf(1) / 12])]]])],
+)
+sol = pmp.solve(duality_gap_threshold="1e-30", want=("y", "z", "x"))
+print(sol.status, sol.primal_objective, sol.y)
+
+# a linear matrix inequality: maximize y s.t. [[1, y], [y, 1]] >= 0
+sol = sdpb.LMI(b=[1], blocks=[([[1, 0], [0, 1]], [[0, 1], [1, 0]])]).solve()
+
+# pmp.json interoperability with the SDPB command line tools
+pmp = sdpb.read_pmp_json("pmp.json"); sdpb.write_pmp_json(pmp, "copy.json")
+sdp = pmp.to_sdp()        # what pmp2sdp would write (objectives, per-block c, B, bases)
 ```
 
-Keyword arguments map onto `sdpb` command-line options.
+`SolverOptions` (or keyword overrides) mirror `sdpb`'s options in snake_case;
+`Solution` carries objectives, errors, `y`, `z`, and optionally `x`, `X`, `Y`,
+`c_minus_By`. See `docs/API_DESIGN.md`.
+
+The legacy CLI passthrough remains as `sdpb.solve_dir(sdp_dir, out_dir, **cli_options)`.
 
 ## Tests
 
@@ -55,4 +78,5 @@ Keyword arguments map onto `sdpb` command-line options.
 pytest
 ```
 
-Tests that need the compiled extension are skipped when it is not built.
+Tests that need the compiled extension are skipped when it is not built. The
+long end-to-end datasets (SingletScalar) run with `pytest --run-slow`.

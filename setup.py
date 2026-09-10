@@ -78,7 +78,7 @@ def parse_define(d: str) -> tuple:
 waf_defines = [parse_define(d) for d in collect(env, "DEFINES") + list(env.get("DEFINES", []))]
 
 # Static libs built by waf (order matters for static linking) plus external libs.
-sdpb_static_libs = ["sdp_solve", "pmp2sdp_lib", "sdpb_util"]
+sdpb_static_libs = ["sdp_solve", "pmp2sdp_lib", "pmp", "sdpb_util"]
 libraries = sdpb_static_libs + collect(env, "LIB") + collect(env, "STLIB")
 if not env:
     # Reasonable defaults when the waf cache is unavailable.

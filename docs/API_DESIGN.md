@@ -31,6 +31,12 @@ Constraints from the C++ side that shape the design (api-doc §2):
 - Errors are `std::runtime_error` with a stack trace in the message. In a single
   process, catching them is safe.
 - `Environment` installs its own SIGTERM handler; `run()` polls it each iteration.
+- **The bootstrap fork of Elemental allows `SetPrecision` exactly once per
+  process** (`src/core/imports/gmp.cpp` throws "Not allowed to call
+  SetPrecision twice"). Precision is therefore fixed by the first call that
+  needs it and cannot change afterwards; a different precision needs a new
+  process. (api-doc §2 suggests re-calling `set_precision`; that does not hold
+  for this Elemental.)
 
 ## 2. Architecture
 
@@ -72,6 +78,13 @@ Decimal strings, lossless in both directions:
 `Solution` values are `mpmath.mpf` from the global `mpmath.mp` context. Users
 who continue in high precision set `mpmath.mp.prec` themselves; the docstring
 says so and `Solution.precision` records the bits used.
+
+**Precision is per process.** `sdpb_python.set_precision(bits)` may be called
+once; otherwise the first `solve()`, `to_sdp()` or `sampled()` fixes it (from
+its `precision` argument, default 400). `SolverOptions.precision=None` means
+"the fixed precision". A later request for a different value raises
+`SDPBError("precision is already fixed at N bits ...")`. Consequences for the
+test-suite are in §9.
 
 ## 4. Public Python API
 
@@ -280,6 +293,11 @@ constructor) and compare every block matrix.
 
 Static; sets the existing `sigterm_flag`. Lets a host stop the solver cleanly.
 
+**P4 — `SDP_Solver::num_iterations`** (`src/sdp_solve/SDP_Solver.hxx`, `run/run.cxx`)
+
+Public counter of completed iterations of the last `run()` (`Timers` cannot be
+enumerated, and `iterations.json` is optional).
+
 Not patched: `Solver_Parameters` defaults (helper lives in the shim), the
 `write_control_json` declaration mismatch (unused here).
 
@@ -293,6 +311,9 @@ Not patched: `Solver_Parameters` defaults (helper lives in the shim), the
 - `.gitmodules` / submodule pointer: track branch `python-api`.
 
 ## 8. Milestones
+
+Status (2026-09-10): M1 and M2 implemented on fork branch `python-api`
+(patches P1–P4) and in `src/sdpb_python/`; tiers T1–T5 pass. M3 is open.
 
 **M1 — in-memory PMP → `Solution`** (core)
 Fork P1–P3 with their unit tests (§9.4); shim `solve_pmp`; Python
@@ -436,6 +457,13 @@ at 1024 bits as the fork uses:
 
 ### 9.5 Running
 
+- The pytest process runs at one precision, `TEST_PRECISION = 768` (as the
+  fork's `unit_tests` binary does). References made at other precisions are
+  compared at their `diff_precision`; where that is not enough because SDPB's
+  sample points converge only to a precision-dependent accuracy
+  (`pmp2sdp/json` at 512 bits) or to reproduce a dataset's native run
+  (`1d` at 664 bits), the check runs in a subprocess via
+  `tests/util/subproc.run_at_precision`.
 - `pytest` runs T1–T3, T5, T6 and the fast T4 datasets (about a minute).
 - `pytest --run-slow` adds the SingletScalar datasets; they take minutes each
   in a single process (the fork gives them 6 ranks), so CI runs them nightly.
