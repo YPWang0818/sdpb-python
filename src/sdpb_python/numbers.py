@@ -27,6 +27,8 @@ def to_str(value: NumberLike, bits: int) -> str:
         s = value.strip()
         if not s:
             raise ValueError("empty number string")
+        if "/" in s:  # "1/12": exact fraction, rendered at the working precision
+            return to_str(Fraction(s), bits)
         return s
     if isinstance(value, bool):
         return "1" if value else "0"

@@ -19,11 +19,15 @@ def _ext():
 
 @dataclass
 class LMI:
-    """Block-diagonal linear matrix inequality.
+    """Block-diagonal linear matrix inequality:
 
-    ``blocks[j]`` is the sequence ``(M_0, M_1, ..., M_N)`` of symmetric matrices for
-    block ``j`` (nested lists, numpy arrays or ``mpmath.matrix``).  To minimise,
-    negate ``b`` and ``f``.
+    maximize ``f + b . y`` over ``y`` in ``R^N`` such that
+    ``M_0 + sum_n y_n M_n`` is positive semidefinite, block by block.
+
+    ``blocks[j]`` is the sequence ``(M_0, M_1, ..., M_N)`` of symmetric matrices
+    for block ``j`` (nested lists, numpy arrays or ``mpmath.matrix``).  To
+    minimise, negate ``b`` and ``f``.  Internally this is a PMP whose
+    polynomials are constants, so every block has a single sample point.
     """
 
     b: Sequence[Any]

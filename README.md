@@ -130,6 +130,18 @@ with pmp.solver(precision=768) as solver:
 
 The legacy CLI passthrough remains as `sdpb.solve_dir(sdp_dir, out_dir, **cli_options)`.
 
+## Documentation
+
+The user guide and API reference live in `docs/` (Sphinx, Markdown sources):
+
+```
+pip install -e ".[docs]"
+sphinx-build -b html docs docs/_build/html
+```
+
+Then open `docs/_build/html/index.html`. Start with the quickstart
+(`docs/quickstart.md`) and the background page on what SDPB solves.
+
 ## Tests
 
 ```

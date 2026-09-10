@@ -19,3 +19,6 @@ src/sdpb_python/*.c
 
 # build logs
 *.log
+
+# documentation build
+docs/_build/

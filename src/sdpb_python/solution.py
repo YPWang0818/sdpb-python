@@ -11,7 +11,13 @@ from .numbers import from_str, matrix_mpfs, mpfs
 
 
 class TerminateReason(enum.Enum):
-    """Why SDPB stopped (``SDP_Solver_Terminate_Reason``)."""
+    """Why SDPB stopped (``SDP_Solver_Terminate_Reason``).
+
+    The value of each member is the exact text SDPB writes to ``out.txt``.
+    Only :attr:`PRIMAL_DUAL_OPTIMAL` means the problem was solved to the
+    requested thresholds; the ``*_FEASIBLE`` and ``*_JUMP_DETECTED`` reasons
+    are early stops requested through :class:`~sdpb_python.SolverOptions`.
+    """
 
     PRIMAL_DUAL_OPTIMAL = "found primal-dual optimal solution"
     PRIMAL_FEASIBLE = "found primal feasible solution"
@@ -35,6 +41,13 @@ class TerminateReason(enum.Enum):
 
 @dataclass
 class BlockInfo:
+    """Size of one SDP block.
+
+    Attributes:
+        dim: Matrix dimension of the constraint (``m_j``).
+        num_points: Number of sample points (``d_j + 1``); 1 for an LMI block.
+    """
+
     dim: int
     num_points: int
 
@@ -45,7 +58,34 @@ class BlockInfo:
 
 @dataclass
 class Solution:
-    """Solver output.  Numbers are ``mpmath.mpf`` at ``precision`` bits."""
+    """Solver output.  Numbers are ``mpmath.mpf`` at ``precision`` bits.
+
+    See :doc:`/background` for the meaning of the variables.
+
+    Attributes:
+        status: Why the solver stopped; :attr:`optimal` is the usual check.
+        primal_objective: ``f + c . x``.
+        dual_objective: ``f + b . y``; for a PMP this is the optimal value of
+            the objective ``a . z``.
+        duality_gap: ``|primal - dual| / max(|primal| + |dual|, 1)``.
+        primal_error: Largest primal residue.
+        dual_error: Largest dual residue.
+        y: The dual variables, length ``N``.
+        z: The PMP variables of Manual eq. (3.1), length ``N + 1``, when the
+            problem has a normalization and ``"z"`` was requested; else ``None``.
+        x: Per block, the primal variables (length ``num_points * dim * (dim+1) / 2``);
+            ``None`` unless ``"x"`` was requested.
+        X: Per block, the pair ``(even, odd)`` of positive semidefinite primal
+            matrices; ``None`` unless ``"X"`` was requested.
+        Y: Per block, the pair ``(even, odd)`` of positive semidefinite dual
+            matrices; for an LMI block ``Y[j][0]`` is ``M_0 + sum_n y_n M_n``.
+        c_minus_By: Per block, ``c - B y``: the extremal functional evaluated on
+            the sampled constraints (what ``spectrum`` consumes).
+        iterations: Iterations completed by this run.
+        runtime_seconds: Wall time of the run.
+        precision: Bits of precision used.
+        blocks: :class:`BlockInfo` per block.
+    """
 
     status: TerminateReason
     primal_objective: mpmath.mpf

@@ -17,10 +17,56 @@ _INT64_MAX = 2**63 - 1
 
 @dataclass
 class SolverOptions:
-    """Options for :func:`solve`.  Defaults are SDPB's own.
+    """Solver options.  Defaults are SDPB's own.
 
-    Names follow SDPB's command line options in snake_case, e.g.
-    ``duality_gap_threshold`` for ``--dualityGapThreshold``.
+    Names follow ``sdpb``'s command line options in snake_case, e.g.
+    ``duality_gap_threshold`` for ``--dualityGapThreshold``.  Numeric
+    thresholds accept anything :mod:`sdpb_python.numbers` converts
+    (``int``, ``float``, ``str``, ``Fraction``, ``mpf``); strings such as
+    ``"1e-30"`` are the safest way to write tiny numbers.
+
+    Attributes:
+        precision: Working precision in bits (``--precision``).  ``None`` means
+            the precision already fixed for this process, or SDPB's default
+            400 if none is fixed yet.  See :ref:`precision`.
+        max_iterations: Stop after this many iterations (``--maxIterations``, 500).
+        max_runtime: Stop after this many seconds (``--maxRuntime``, unlimited).
+        duality_gap_threshold: Optimality test on the normalised duality gap
+            ``|primal - dual| / max(|primal| + |dual|, 1)`` (1e-30).
+        primal_error_threshold: Optimality test on the primal residues (1e-30).
+        dual_error_threshold: Optimality test on the dual residues (1e-30).
+        initial_matrix_scale_primal: ``X`` starts as this multiple of the
+            identity (``--initialMatrixScalePrimal``, 1e20).
+        initial_matrix_scale_dual: Same for ``Y`` (1e20).
+        feasible_centering_parameter: Centering parameter ``beta`` used once
+            primal and dual are feasible (0.1).
+        infeasible_centering_parameter: Centering parameter while infeasible (0.3).
+        step_length_reduction: Fraction of the maximal step taken (0.7).
+        max_complementarity: Abort when ``Tr(XY)/dim`` exceeds this (1e100).
+        min_primal_step: Stop when the primal step length falls below this (0).
+        min_dual_step: Stop when the dual step length falls below this (0).
+        find_primal_feasible: Stop as soon as a primal feasible point is found.
+        find_dual_feasible: Stop as soon as a dual feasible point is found.
+        detect_primal_feasible_jump: Stop when the primal step length reaches 1.
+        detect_dual_feasible_jump: Stop when the dual step length reaches 1.
+        max_shared_memory_bytes: Memory budget for the exact ``Q`` computation
+            (``--maxSharedMemory``); ``0`` lets SDPB choose about half of the
+            free RAM.  Accepts ints or strings such as ``"100K"`` / ``"64G"``.
+        checkpoint_dir: Directory for SDPB's binary checkpoints.  When set, a
+            checkpoint found there is loaded before solving and one is written
+            at the end and every ``checkpoint_interval`` seconds.  ``None``
+            disables checkpointing.
+        checkpoint_interval: Seconds between checkpoints (3600).
+        output_dir: If set, SDPB writes ``iterations.json`` (one record per
+            iteration) and ``c_minus_By/c_minus_By.json`` there, as the
+            ``sdpb`` executable does in its ``--outDir``.
+        verbosity: ``"none"`` (default), ``"regular"``, ``"debug"`` or
+            ``"trace"`` (or 0-3).  Anything above ``"none"`` prints SDPB's
+            iteration table to the C++ standard output.
+        want: Which parts of the solution to return besides the objectives and
+            errors: any of ``"x"``, ``"y"``, ``"z"``, ``"X"``, ``"Y"``,
+            ``"c_minus_By"``.  Default ``("y", "z")``.  Large problems have
+            large ``X``/``Y``; ask only for what you need.
     """
 
     precision: int | None = None  # None: the process precision if fixed, else SDPB's 400

@@ -31,9 +31,12 @@ def _ext():
 
 @dataclass
 class DampedRational:
-    """``constant * base**x / prod_i (x - poles[i])``.
+    """A damped rational prefactor ``constant * base**x / prod_i (x - poles[i])``.
 
-    SDPB's default prefactor is ``exp(-x)``: ``DampedRational(base=math.exp(-1))``.
+    Multiplying a polynomial matrix by a positive prefactor does not change the
+    positivity constraint, but it tells SDPB where to place the sample points
+    and how to scale them.  SDPB's default is ``exp(-x)``;
+    :meth:`exp_minus_x` builds it (with optional poles) at full precision.
     """
 
     constant: NumberLike = 1
@@ -128,9 +131,22 @@ class PolynomialMatrix:
     """One positivity constraint: ``sum_n z_n P^{rs}_n(x)`` is PSD for ``x >= 0``.
 
     ``polynomials[r][s]`` is the list of ``N+1`` polynomials ``P^{rs}_0..P^{rs}_N``
-    (each a :class:`Polynomial` or a coefficient list); the matrix must be symmetric.
-    Optional fields mirror ``pmp.json`` (see ``docs/SDPB_input_format.md`` in SDPB);
-    anything omitted is computed by SDPB.
+    (each a :class:`Polynomial` or a coefficient list); the matrix must be
+    symmetric.  The optional fields mirror the keys of ``pmp.json``; anything
+    omitted is computed by SDPB (see :meth:`sampled`).
+
+    Attributes:
+        polynomials: ``dim x dim`` nested lists of ``N+1`` polynomials each.
+        prefactor: :class:`DampedRational`; default ``exp(-x)``.
+        reduced_prefactor: Prefactor with fewer poles used for sampling;
+            default derived from ``prefactor`` and ``max_num_poles``.
+        max_num_poles: Keep at most this many poles of the prefactor when
+            sampling (negative: no limit).
+        sample_points: Explicit sample points ``x_k >= 0``.
+        sample_scalings: Explicit ``prefactor(x_k)``.
+        reduced_sample_scalings: Explicit ``reduced_prefactor(x_k)``.
+        bilinear_basis: Explicit ``(even, odd)`` lists of basis polynomials.
+        label: Free text, e.g. the source file; not used by the solver.
     """
 
     polynomials: Sequence[Sequence[Sequence[Any]]]
@@ -233,6 +249,19 @@ def _combine_max_num_poles(local: int | None, global_: int | None) -> int | None
 
 @dataclass
 class SampledMatrix:
+    """Sampling data SDPB derived for one :class:`PolynomialMatrix`.
+
+    Attributes:
+        prefactor: The prefactor actually used (default ``exp(-x)``).
+        reduced_prefactor: The prefactor after ``max_num_poles`` trimming.
+        sample_points: The ``num_points`` points ``x_k >= 0``.
+        sample_scalings: ``prefactor(x_k)``.
+        reduced_sample_scalings: ``reduced_prefactor(x_k)``.
+        bilinear_basis: Even and odd orthogonal polynomials ``q_m(x)``.
+        bilinear_bases: The bases sampled at the points (as stored in
+            ``block_data`` files): even and odd matrices.
+    """
+
     prefactor: DampedRational
     reduced_prefactor: DampedRational
     sample_points: list[mpmath.mpf]
@@ -251,6 +280,17 @@ class SampledMatrix:
 
 @dataclass
 class SDPBlock:
+    """One block of an :class:`SDPData` (the content of ``block_data_<j>``).
+
+    Attributes:
+        block_index: Global block index ``j``.
+        dim: Matrix dimension.
+        num_points: Number of sample points.
+        bilinear_bases: Even and odd sampled bases.
+        c: Constraint constants, length ``num_points * dim * (dim+1) / 2``.
+        B: Constraint matrix, ``len(c)`` by ``N``.
+    """
+
     block_index: int
     dim: int
     num_points: int
@@ -261,7 +301,18 @@ class SDPBlock:
 
 @dataclass
 class SDPData:
-    """What ``pmp2sdp`` writes to an ``sdp/`` directory (Manual eq. 2.2)."""
+    """What ``pmp2sdp`` writes to an ``sdp/`` directory (Manual eq. 2.2).
+
+    The normalization of the PMP has been eliminated: ``objective_const`` is
+    ``b_0`` and ``b`` is ``b_1..b_N``.
+
+    Attributes:
+        objective_const: The constant term ``b_0``.
+        b: The dual objective vector.
+        normalization: The PMP's normalization, kept for recovering ``z``.
+        blocks: One :class:`SDPBlock` per constraint.
+        precision: Bits used for the conversion.
+    """
 
     objective_const: mpmath.mpf
     b: list[mpmath.mpf]
@@ -291,10 +342,15 @@ class SDPData:
 
 @dataclass
 class PMP:
-    """A polynomial matrix program.
+    """A polynomial matrix program (SDPB manual eq. 3.1):
 
-    ``objective`` is ``a_0..a_N``; ``normalization`` is ``n_0..n_N`` or ``None``;
-    each matrix holds ``N+1`` polynomials per entry.
+    maximize ``a . z`` over ``z`` in ``R^{N+1}`` such that ``n . z = 1`` and, for
+    every matrix ``j``, ``sum_i z_i M^j_i(x)`` is positive semidefinite for all
+    ``x >= 0``.
+
+    ``objective`` is ``a_0..a_N``; ``normalization`` is ``n_0..n_N`` (``None``
+    means ``(1, 0, ..., 0)``, i.e. ``z_0 = 1`` and ``y = z_1..z_N``); each
+    matrix holds ``N+1`` polynomials per entry.
     """
 
     objective: Sequence[NumberLike]

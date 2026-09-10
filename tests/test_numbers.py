@@ -28,6 +28,8 @@ def test_inputs_accepted():
     assert num.to_str(True, bits) == "1"
     assert num.to_str("  1e-30 ", bits) == "1e-30"
     with mpmath.workprec(bits):
+        assert num.from_str(num.to_str("1/12", bits), bits) == mpmath.mpf(1) / 12
+    with mpmath.workprec(bits):
         assert num.from_str(num.to_str(Fraction(1, 3), bits), bits) == mpmath.mpf(1) / 3
         assert num.from_str(num.to_str(0.1, bits), bits) == mpmath.mpf("0.1")  # decimal, not binary 0.1
     with pytest.raises(ValueError):
