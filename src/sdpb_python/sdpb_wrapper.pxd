@@ -144,3 +144,18 @@ cdef extern from "sdpb_wrapper.hxx" namespace "sdpb_python" nogil:
 
     Solution_Data solve_pmp(const PMP_Spec& spec, const Solver_Options& options) except +
     Solution_Data solve_lmi(const LMI_Spec& spec, const Solver_Options& options) except +
+    bool last_run_interrupted() except +
+
+    cdef cppclass Solver:
+        Solver(const PMP_Spec& spec, const Solver_Options& options) except +
+        Solver(const LMI_Spec& spec, const Solver_Options& options) except +
+        Solution_Data run(const Solver_Options& options) except +
+        Solution_Data state(const Solver_Options& options) except +
+        void set_y(const vector[string]& y) except +
+        void set_X(const vector[Matrix_Data]& blocks) except +
+        void set_Y(const vector[Matrix_Data]& blocks) except +
+        void save_checkpoint(const string& directory) except +
+        vector[size_t] dims() except +
+        vector[size_t] num_points() except +
+        size_t num_variables() except +
+        int64_t total_iterations() except +

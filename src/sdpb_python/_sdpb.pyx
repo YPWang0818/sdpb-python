@@ -7,6 +7,7 @@ Use :mod:`sdpb_python` for the public API.
 
 from libc.stdint cimport int64_t
 from libcpp cimport bool
+from libcpp.memory cimport unique_ptr
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 
@@ -308,8 +309,7 @@ def solve_pmp(dict pmp_spec, dict options) -> dict:
     return _py_solution(s)
 
 
-def solve_lmi(dict lmi_spec, dict options) -> dict:
-    """lmi_spec: {"f": str, "b": [str], "blocks": [[rows...] * (N+1)] per block}"""
+cdef cw.LMI_Spec _lmi_spec(dict lmi_spec) except *:
     cdef cw.LMI_Spec spec
     cdef vector[cw.Matrix_Data] block
     spec.f = _s(lmi_spec["f"])
@@ -319,8 +319,96 @@ def solve_lmi(dict lmi_spec, dict options) -> dict:
         for m in matrices:
             block.push_back(_matrix(m))
         spec.blocks.push_back(block)
+    return spec
+
+
+def solve_lmi(dict lmi_spec, dict options) -> dict:
+    """lmi_spec: {"f": str, "b": [str], "blocks": [[rows...] * (N+1)] per block}"""
+    cdef cw.LMI_Spec spec = _lmi_spec(lmi_spec)
     cdef cw.Solver_Options o = _options(options)
     cdef cw.Solution_Data s
     with nogil:
         s = cw.solve_lmi(spec, o)
     return _py_solution(s)
+
+
+def last_run_interrupted() -> bool:
+    """True if the last run stopped because SIGINT (Ctrl-C) was received."""
+    return cw.last_run_interrupted()
+
+
+cdef class Solver:
+    """Handle owning SDPB's solver state (see sdpb_python.handle.Solver)."""
+    cdef unique_ptr[cw.Solver] ptr
+
+    def __cinit__(self, str kind, dict spec, dict options):
+        cdef cw.PMP_Spec pmp
+        cdef cw.LMI_Spec lmi
+        cdef cw.Solver_Options o = _options(options)
+        if kind == "pmp":
+            pmp = _pmp_spec(spec)
+            with nogil:
+                self.ptr.reset(new cw.Solver(pmp, o))
+        elif kind == "lmi":
+            lmi = _lmi_spec(spec)
+            with nogil:
+                self.ptr.reset(new cw.Solver(lmi, o))
+        else:
+            raise ValueError("kind must be 'pmp' or 'lmi'")
+
+    cdef cw.Solver* _get(self) except NULL:
+        if not self.ptr:
+            raise RuntimeError("solver is closed")
+        return self.ptr.get()
+
+    def close(self):
+        self.ptr.reset()
+
+    @property
+    def closed(self) -> bool:
+        return not self.ptr
+
+    def run(self, dict options) -> dict:
+        cdef cw.Solver* solver = self._get()
+        cdef cw.Solver_Options o = _options(options)
+        cdef cw.Solution_Data s
+        with nogil:
+            s = solver.run(o)
+        return _py_solution(s)
+
+    def state(self, dict options) -> dict:
+        cdef cw.Solver* solver = self._get()
+        cdef cw.Solver_Options o = _options(options)
+        return _py_solution(solver.state(o))
+
+    def set_y(self, y):
+        self._get().set_y(_strs(y))
+
+    def set_X(self, blocks):
+        cdef vector[cw.Matrix_Data] mats
+        for m in blocks:
+            mats.push_back(_matrix(m))
+        self._get().set_X(mats)
+
+    def set_Y(self, blocks):
+        cdef vector[cw.Matrix_Data] mats
+        for m in blocks:
+            mats.push_back(_matrix(m))
+        self._get().set_Y(mats)
+
+    def save_checkpoint(self, directory):
+        self._get().save_checkpoint(_s(directory))
+
+    def dims(self) -> list:
+        cdef vector[size_t] d = self._get().dims()
+        return [d[i] for i in range(d.size())]
+
+    def num_points(self) -> list:
+        cdef vector[size_t] d = self._get().num_points()
+        return [d[i] for i in range(d.size())]
+
+    def num_variables(self) -> int:
+        return self._get().num_variables()
+
+    def total_iterations(self) -> int:
+        return self._get().total_iterations()

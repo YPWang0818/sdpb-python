@@ -173,13 +173,14 @@ class Solution:
 (local matrices in a single process; the shim still goes through
 `DistMatrix<STAR,STAR>` so it stays MPI-correct).
 
-### 4.5 Solver handle (milestone 3)
+### 4.5 Solver handle (`handle.py`)
 
 ```python
-solver = PMP.solver(options)   # builds Block_Info, SDP, SDP_Solver; holds them
-solver.run(**overrides) -> Solution     # may be called repeatedly (tighter gap, more iterations)
+solver = PMP.solver(options)   # builds Block_Info, SDP, SDP_Solver; holds them (also LMI.solver)
+solver.run(**overrides) -> Solution     # continues the iteration; may be called repeatedly
+solver.state(want=...) -> Solution      # current iterate without running
 solver.warm_start(y=..., X=..., Y=...)  # writes into solver.y / X / Y before run()
-solver.save_checkpoint(dir); solver.close()
+solver.save_checkpoint(dir); solver.total_iterations; solver.close()  # or a `with` block
 ```
 
 Backed by `SDP_Solver::run()` being re-callable (api-doc §8.5). The handle
@@ -193,8 +194,9 @@ changed. `close()` (and `__del__`) frees the C++ objects; the session's
   `.details` keeps the full text including SDPB's stack trace.
 - Ctrl-C during a solve: the shim installs a SIGINT handler for the duration of
   `run()` that calls `Environment::request_termination()` (fork patch P3); the
-  solver returns `SIGTERM_RECEIVED` at the next iteration and Python raises
-  `KeyboardInterrupt` with the partial `Solution` attached.
+  solver returns `SIGTERM_RECEIVED` at the end of the current iteration and
+  Python raises `SolverInterrupted` (a `KeyboardInterrupt`) carrying the partial
+  `Solution`; the handle can `run()` again afterwards (patch P5).
 - The GIL is released during `run()`; a module-level lock serialises solves
   because SDPB is not reentrant.
 - MPI size > 1 raises at import of the session with a clear message.
@@ -298,6 +300,11 @@ Static; sets the existing `sigterm_flag`. Lets a host stop the solver cleanly.
 Public counter of completed iterations of the last `run()` (`Timers` cannot be
 enumerated, and `iterations.json` is optional).
 
+**P5 — `Environment::clear_termination_request()`**
+
+The SIGTERM flag is a file-static that nothing resets; without this, a solver
+stopped once could never run again in the same process.
+
 Not patched: `Solver_Parameters` defaults (helper lives in the shim), the
 `write_control_json` declaration mismatch (unused here).
 
@@ -312,8 +319,9 @@ Not patched: `Solver_Parameters` defaults (helper lives in the shim), the
 
 ## 8. Milestones
 
-Status (2026-09-10): M1 and M2 implemented on fork branch `python-api`
-(patches P1–P4) and in `src/sdpb_python/`; tiers T1–T5 pass. M3 is open.
+Status (2026-09-11): M1–M3 implemented on fork branch `python-api`
+(patches P1–P5) and in `src/sdpb_python/`; tiers T1–T7 pass (T4's slow
+datasets take ~17 minutes with `--run-slow`).
 
 **M1 — in-memory PMP → `Solution`** (core)
 Fork P1–P3 with their unit tests (§9.4); shim `solve_pmp`; Python

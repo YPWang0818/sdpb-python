@@ -23,7 +23,7 @@ class TerminateReason(enum.Enum):
     MAX_RUNTIME_EXCEEDED = "maxRuntime exceeded"
     PRIMAL_STEP_TOO_SMALL = "primal step too small"
     DUAL_STEP_TOO_SMALL = "dual step too small"
-    SIGTERM_RECEIVED = "SIGTERM received"
+    SIGTERM_RECEIVED = "SIGTERM signal received"
 
     @classmethod
     def from_sdpb(cls, text: str) -> "TerminateReason":

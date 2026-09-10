@@ -1,6 +1,7 @@
 """Python bindings for a fork of SDPB (https://github.com/YPWang0818/sdpb)."""
 
 from .errors import SDPBError
+from .handle import Solver, SolverInterrupted
 from .io import read_pmp_json, write_pmp_json
 from .lmi import LMI
 from .options import SolverOptions
@@ -35,6 +36,6 @@ __version__ = "0.2.0"
 __all__ = [
     "PMP", "PolynomialMatrix", "Polynomial", "DampedRational", "LMI",
     "SolverOptions", "Solution", "TerminateReason", "BlockInfo", "SDPData", "SampledMatrix",
-    "SDPBError", "read_pmp_json", "write_pmp_json",
+    "SDPBError", "Solver", "SolverInterrupted", "read_pmp_json", "write_pmp_json",
     "sdpb_version", "solve_dir", "SDPBResult", "set_precision", "precision", "__version__",
 ]

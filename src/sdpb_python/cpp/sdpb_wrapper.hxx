@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -176,4 +177,43 @@ namespace sdpb_python
 
   Solution_Data solve_pmp(const PMP_Spec &spec, const Solver_Options &options);
   Solution_Data solve_lmi(const LMI_Spec &spec, const Solver_Options &options);
+
+  // True when the last run() stopped because SIGINT was received (Ctrl-C).
+  bool last_run_interrupted();
+
+  // ---- solver handle -----------------------------------------------------
+  // Owns Block_Info, SDP and SDP_Solver, so that run() can be called several
+  // times (tighter thresholds, more iterations) from the current x, X, y, Y,
+  // and the state can be warm-started or checkpointed.
+  class Solver
+  {
+  public:
+    Solver(const PMP_Spec &spec, const Solver_Options &options);
+    Solver(const LMI_Spec &spec, const Solver_Options &options);
+    ~Solver();
+    Solver(const Solver &) = delete;
+    Solver &operator=(const Solver &) = delete;
+
+    // Continue the interior-point iteration with (possibly new) options.
+    Solution_Data run(const Solver_Options &options);
+    // Current state without iterating.
+    Solution_Data state(const Solver_Options &options) const;
+
+    // Warm start: y (length N), X / Y (2 matrices per block: even, odd).
+    void set_y(const std::vector<std::string> &y);
+    void set_X(const std::vector<Matrix_Data> &blocks);
+    void set_Y(const std::vector<Matrix_Data> &blocks);
+    void save_checkpoint(const std::string &directory) const;
+
+    std::vector<size_t> dims() const;
+    std::vector<size_t> num_points() const;
+    size_t num_variables() const;
+    int64_t total_iterations() const { return total_iterations_; }
+
+  private:
+    struct Impl;
+    std::unique_ptr<Impl> impl;
+    int64_t total_iterations_ = 0;
+    bool has_normalization_ = false;
+  };
 }

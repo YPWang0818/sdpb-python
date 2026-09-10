@@ -55,6 +55,13 @@ class LMI:
             blocks.append(mats)
         return {"f": _num.to_str(self.f, bits), "b": _num.strs(self.b, bits), "blocks": blocks}
 
+    def solver(self, options: SolverOptions | None = None, **overrides: Any):
+        """A :class:`~sdpb_python.handle.Solver` holding this problem's state."""
+        from .handle import Solver
+
+        opts = resolve(options, overrides)
+        return Solver("lmi", self._to_spec(effective_precision(opts.precision)), opts)
+
     def solve(self, options: SolverOptions | None = None, **overrides: Any) -> Solution:
         opts = resolve(options, overrides)
         try:

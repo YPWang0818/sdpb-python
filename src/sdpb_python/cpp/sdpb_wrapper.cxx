@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <csignal>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -52,6 +53,43 @@ namespace sdpb_python
     std::mutex solve_mutex;
     // Precision requested by the first set_precision() call (0 = none yet).
     size_t requested_precision_bits = 0;
+    // Set by the SIGINT handler installed during run().
+    volatile std::sig_atomic_t sigint_flag = 0;
+    bool last_interrupted = false;
+
+    void handle_sigint(int)
+    {
+      sigint_flag = 1;
+      Environment::request_termination();
+    }
+
+    // Installs a SIGINT handler that asks SDPB to stop at the next
+    // iteration; restores the previous handler (Python's) afterwards.
+    struct Sigint_Guard
+    {
+      void (*previous)(int);
+      Sigint_Guard()
+      {
+        sigint_flag = 0;
+        Environment::clear_termination_request();
+        previous = std::signal(SIGINT, handle_sigint);
+      }
+      ~Sigint_Guard()
+      {
+        std::signal(SIGINT, previous);
+        last_interrupted = sigint_flag != 0;
+        Environment::clear_termination_request();
+      }
+    };
+
+    void require_single_rank()
+    {
+      if(El::mpi::Size() > 1)
+        throw std::runtime_error(
+          "sdpb_python supports a single MPI rank; run without mpirun "
+          "(or with -n 1). Got "
+          + std::to_string(El::mpi::Size()) + " ranks.");
+    }
 
     Environment &env()
     {
@@ -507,46 +545,22 @@ namespace sdpb_python
       return ss.str();
     }
 
-    // Runs the solver on an SDP and gathers the results.
-    Solution_Data run_solver(const SDP &sdp, const Block_Info &block_info,
-                             const El::Grid &grid, const Solver_Options &o,
-                             Timers &timers)
+    // Gathers results from a solver (after run(), or its current state).
+    Solution_Data
+    collect(const SDP_Solver &solver, const SDP &sdp,
+            const Block_Info &block_info, const Solver_Options &o,
+            const std::string &terminate_reason, const int64_t runtime_ms)
     {
-      const Environment &environment = env();
-      const Verbosity verbosity = to_verbosity(o.verbosity);
-      const Solver_Parameters parameters = make_solver_parameters(o);
-      const auto start_time = std::chrono::high_resolution_clock::now();
-
       const size_t N = sdp.dual_objective_b.Height();
-      SDP_Solver solver(parameters, verbosity, false, block_info, grid, N);
-
-      fs::path iterations_json_path;
-      if(!o.output_dir.empty())
-        {
-          fs::create_directories(o.output_dir);
-          iterations_json_path = fs::path(o.output_dir) / "iterations.json";
-        }
-      El::Matrix<int32_t> block_timings_ms;
-      const SDP_Solver_Terminate_Reason reason = solver.run(
-        environment, parameters, verbosity, to_property_tree(parameters),
-        block_info, sdp, grid, start_time, iterations_json_path, timers,
-        block_timings_ms);
-      const auto runtime = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::high_resolution_clock::now() - start_time);
-
-      if(!parameters.checkpoint_out.empty())
-        solver.save_checkpoint(parameters.checkpoint_out, verbosity,
-                               to_property_tree(parameters));
-
       Solution_Data out;
-      out.terminate_reason = to_str(reason);
+      out.terminate_reason = terminate_reason;
+      out.runtime_ms = runtime_ms;
       out.primal_objective = to_str(solver.primal_objective);
       out.dual_objective = to_str(solver.dual_objective);
       out.duality_gap = to_str(solver.duality_gap);
       out.primal_error = to_str(solver.primal_error());
       out.dual_error = to_str(solver.dual_error);
       out.iterations = solver.num_iterations;
-      out.runtime_ms = runtime.count();
       out.precision = El::gmp::Precision();
       out.dims = block_info.dimensions;
       out.num_points = block_info.num_points;
@@ -607,7 +621,58 @@ namespace sdpb_python
         }
       return out;
     }
+
+    // Runs the interior-point iteration on an existing solver.
+    Solution_Data run_existing(SDP_Solver &solver, const SDP &sdp,
+                               const Block_Info &block_info,
+                               const El::Grid &grid, const Solver_Options &o,
+                               Timers &timers)
+    {
+      const Environment &environment = env();
+      const Verbosity verbosity = to_verbosity(o.verbosity);
+      const Solver_Parameters parameters = make_solver_parameters(o);
+      const auto start_time = std::chrono::high_resolution_clock::now();
+
+      fs::path iterations_json_path;
+      if(!o.output_dir.empty())
+        {
+          fs::create_directories(o.output_dir);
+          iterations_json_path = fs::path(o.output_dir) / "iterations.json";
+        }
+      El::Matrix<int32_t> block_timings_ms;
+      SDP_Solver_Terminate_Reason reason;
+      {
+        Sigint_Guard guard;
+        reason = solver.run(environment, parameters, verbosity,
+                            to_property_tree(parameters), block_info, sdp,
+                            grid, start_time, iterations_json_path, timers,
+                            block_timings_ms);
+      }
+      const auto runtime = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::high_resolution_clock::now() - start_time);
+
+      if(!parameters.checkpoint_out.empty())
+        solver.save_checkpoint(parameters.checkpoint_out, verbosity,
+                               to_property_tree(parameters));
+
+      return collect(solver, sdp, block_info, o, to_str(reason),
+                     runtime.count());
+    }
+
+    // Builds a fresh solver, runs it, gathers the results.
+    Solution_Data run_solver(const SDP &sdp, const Block_Info &block_info,
+                             const El::Grid &grid, const Solver_Options &o,
+                             Timers &timers)
+    {
+      const Verbosity verbosity = to_verbosity(o.verbosity);
+      const Solver_Parameters parameters = make_solver_parameters(o);
+      const size_t N = sdp.dual_objective_b.Height();
+      SDP_Solver solver(parameters, verbosity, false, block_info, grid, N);
+      return run_existing(solver, sdp, block_info, grid, o, timers);
+    }
   }
+
+  bool last_run_interrupted() { return last_interrupted; }
 
   Solver_Options default_solver_options()
   {
@@ -645,95 +710,290 @@ namespace sdpb_python
     return o;
   }
 
+  // ---- problem = Block_Info + Grid + SDP (destroyed in reverse order) ----
+  namespace
+  {
+    struct Problem
+    {
+      std::unique_ptr<Block_Info> block_info;
+      std::unique_ptr<El::Grid> grid;
+      std::unique_ptr<SDP> sdp;
+      Problem() = default;
+      Problem(Problem &&) = default;
+      Problem &operator=(Problem &&) = default;
+      ~Problem()
+      {
+        sdp.reset();
+        grid.reset();
+        block_info.reset();
+      }
+    };
+
+    Problem build_pmp_problem(const PMP_Spec &spec, const Verbosity verbosity,
+                              Timers &timers)
+    {
+      const Polynomial_Matrix_Program pmp = to_pmp(spec);
+      const Output_SDP output_sdp(pmp, {"sdpb_python"}, timers);
+
+      std::vector<size_t> dims, num_points;
+      for(const auto &m : pmp.matrices)
+        {
+          dims.push_back(m.polynomials.Height());
+          num_points.push_back(m.sample_points.size());
+        }
+      Problem p;
+      p.block_info
+        = std::make_unique<Block_Info>(env(), dims, num_points, 1, verbosity);
+      p.grid = std::make_unique<El::Grid>(p.block_info->mpi_comm.value);
+
+      // groups in the order of block_info.block_indices
+      std::vector<Dual_Constraint_Group> groups;
+      for(const size_t j : p.block_info->block_indices)
+        {
+          const auto &g = output_sdp.dual_constraint_groups;
+          const auto it
+            = std::find_if(g.begin(), g.end(), [j](const auto &group) {
+                return group.block_index == j;
+              });
+          if(it == g.end())
+            throw std::logic_error("missing Dual_Constraint_Group");
+          groups.push_back(*it);
+        }
+      p.sdp = std::make_unique<SDP>(
+        output_sdp.objective_const, output_sdp.dual_objective_b, groups,
+        output_sdp.normalization, *p.block_info, *p.grid);
+      return p;
+    }
+
+    Problem build_lmi_problem(const LMI_Spec &spec, const Verbosity verbosity)
+    {
+      const size_t N = spec.b.size();
+      if(spec.blocks.empty())
+        throw std::invalid_argument("LMI has no blocks");
+      std::vector<size_t> dims;
+      std::vector<std::vector<El::BigFloat>> c;
+      std::vector<El::Matrix<El::BigFloat>> B;
+      for(size_t j = 0; j < spec.blocks.size(); ++j)
+        {
+          const auto &M = spec.blocks[j];
+          if(M.size() != N + 1)
+            throw std::invalid_argument("each block needs N+1 matrices");
+          const size_t d = M[0].height;
+          for(const auto &m : M)
+            if(m.height != d || m.width != d || m.elements.size() != d * d)
+              throw std::invalid_argument("block matrices must be square and "
+                                          "of equal size");
+          dims.push_back(d);
+          c.emplace_back();
+          B.emplace_back(d * (d + 1) / 2, N);
+          size_t p = 0;
+          for(size_t s = 0; s < d; ++s)
+            for(size_t r = 0; r <= s; ++r, ++p)
+              {
+                c[j].push_back(to_bigfloat(M[0].elements[r * d + s]));
+                for(size_t n = 0; n < N; ++n)
+                  B[j](p, n) = -to_bigfloat(M[n + 1].elements[r * d + s]);
+              }
+        }
+
+      Problem p;
+      p.block_info = std::make_unique<Block_Info>(env(), dims, verbosity);
+      p.grid = std::make_unique<El::Grid>(p.block_info->mpi_comm.value);
+      const El::Grid global_grid;
+      El::DistMatrix<El::BigFloat, El::STAR, El::STAR> yp_to_y(N, N,
+                                                               global_grid),
+        b_star(N, 1, global_grid);
+      El::Identity(yp_to_y, N, N);
+      for(size_t n = 0; n < N; ++n)
+        b_star.Set(n, 0, to_bigfloat(spec.b[n]));
+      std::vector<El::BigFloat> normalization(N + 1, El::BigFloat(0));
+      normalization[0] = 1;
+      p.sdp = std::make_unique<SDP>(to_bigfloat(spec.f), c, B, yp_to_y, b_star,
+                                    normalization, El::BigFloat(1),
+                                    *p.block_info, *p.grid);
+      return p;
+    }
+  }
+
   Solution_Data solve_pmp(const PMP_Spec &spec, const Solver_Options &o)
   {
     std::lock_guard<std::mutex> lock(solve_mutex);
+    require_single_rank();
     set_precision(o.precision);
     const Verbosity verbosity = to_verbosity(o.verbosity);
     Timers timers(env(), verbosity);
-
-    const Polynomial_Matrix_Program pmp = to_pmp(spec);
-    const Output_SDP output_sdp(pmp, {"sdpb_python"}, timers);
-
-    std::vector<size_t> dims, num_points;
-    for(const auto &m : pmp.matrices)
-      {
-        dims.push_back(m.polynomials.Height());
-        num_points.push_back(m.sample_points.size());
-      }
-    const Block_Info block_info(env(), dims, num_points, 1, verbosity);
-    const El::Grid grid(block_info.mpi_comm.value);
-
-    // groups in the order of block_info.block_indices
-    std::vector<Dual_Constraint_Group> groups;
-    for(const size_t j : block_info.block_indices)
-      {
-        const auto &g = output_sdp.dual_constraint_groups;
-        const auto it
-          = std::find_if(g.begin(), g.end(), [j](const auto &group) {
-              return group.block_index == j;
-            });
-        if(it == g.end())
-          throw std::logic_error("missing Dual_Constraint_Group");
-        groups.push_back(*it);
-      }
-    const SDP sdp(output_sdp.objective_const, output_sdp.dual_objective_b,
-                  groups, output_sdp.normalization, block_info, grid);
-    return run_solver(sdp, block_info, grid, o, timers);
+    const Problem p = build_pmp_problem(spec, verbosity, timers);
+    return run_solver(*p.sdp, *p.block_info, *p.grid, o, timers);
   }
 
   Solution_Data solve_lmi(const LMI_Spec &spec, const Solver_Options &o)
   {
     std::lock_guard<std::mutex> lock(solve_mutex);
+    require_single_rank();
     set_precision(o.precision);
     const Verbosity verbosity = to_verbosity(o.verbosity);
     Timers timers(env(), verbosity);
-
-    const size_t N = spec.b.size();
-    if(spec.blocks.empty())
-      throw std::invalid_argument("LMI has no blocks");
-    std::vector<size_t> dims;
-    std::vector<std::vector<El::BigFloat>> c;
-    std::vector<El::Matrix<El::BigFloat>> B;
-    for(size_t j = 0; j < spec.blocks.size(); ++j)
-      {
-        const auto &M = spec.blocks[j];
-        if(M.size() != N + 1)
-          throw std::invalid_argument("each block needs N+1 matrices");
-        const size_t d = M[0].height;
-        for(const auto &m : M)
-          if(m.height != d || m.width != d || m.elements.size() != d * d)
-            throw std::invalid_argument("block matrices must be square and "
-                                        "of equal size");
-        dims.push_back(d);
-        c.emplace_back();
-        B.emplace_back(d * (d + 1) / 2, N);
-        size_t p = 0;
-        for(size_t s = 0; s < d; ++s)
-          for(size_t r = 0; r <= s; ++r, ++p)
-            {
-              c[j].push_back(to_bigfloat(M[0].elements[r * d + s]));
-              for(size_t n = 0; n < N; ++n)
-                B[j](p, n) = -to_bigfloat(M[n + 1].elements[r * d + s]);
-            }
-      }
-
-    const Block_Info block_info(env(), dims, verbosity);
-    const El::Grid grid(block_info.mpi_comm.value);
-    const El::Grid global_grid;
-    El::DistMatrix<El::BigFloat, El::STAR, El::STAR> yp_to_y(N, N,
-                                                             global_grid),
-      b_star(N, 1, global_grid);
-    El::Identity(yp_to_y, N, N);
-    for(size_t n = 0; n < N; ++n)
-      b_star.Set(n, 0, to_bigfloat(spec.b[n]));
-    std::vector<El::BigFloat> normalization(N + 1, El::BigFloat(0));
-    normalization[0] = 1;
-
-    const SDP sdp(to_bigfloat(spec.f), c, B, yp_to_y, b_star, normalization,
-                  El::BigFloat(1), block_info, grid);
+    const Problem p = build_lmi_problem(spec, verbosity);
     Solver_Options options = o;
     options.want_z = false;
-    return run_solver(sdp, block_info, grid, options, timers);
+    return run_solver(*p.sdp, *p.block_info, *p.grid, options, timers);
+  }
+
+  // ---- Solver handle -----------------------------------------------------
+  struct Solver::Impl
+  {
+    Verbosity verbosity;
+    Timers timers;
+    Problem problem;
+    std::unique_ptr<SDP_Solver> solver;
+    Impl(const Verbosity v) : verbosity(v), timers(env(), v) {}
+    ~Impl() { solver.reset(); }
+  };
+
+  namespace
+  {
+    std::unique_ptr<SDP_Solver>
+    make_sdp_solver(const Problem &p, const Solver_Options &o,
+                    const Verbosity verbosity)
+    {
+      const Solver_Parameters parameters = make_solver_parameters(o);
+      const size_t N = p.sdp->dual_objective_b.Height();
+      return std::make_unique<SDP_Solver>(parameters, verbosity, false,
+                                          *p.block_info, *p.grid, N);
+    }
+  }
+
+  Solver::Solver(const PMP_Spec &spec, const Solver_Options &o)
+  {
+    std::lock_guard<std::mutex> lock(solve_mutex);
+    require_single_rank();
+    set_precision(o.precision);
+    const Verbosity verbosity = to_verbosity(o.verbosity);
+    impl = std::make_unique<Impl>(verbosity);
+    impl->problem = build_pmp_problem(spec, verbosity, impl->timers);
+    impl->solver = make_sdp_solver(impl->problem, o, verbosity);
+    has_normalization_ = impl->problem.sdp->normalization.has_value();
+  }
+
+  Solver::Solver(const LMI_Spec &spec, const Solver_Options &o)
+  {
+    std::lock_guard<std::mutex> lock(solve_mutex);
+    require_single_rank();
+    set_precision(o.precision);
+    const Verbosity verbosity = to_verbosity(o.verbosity);
+    impl = std::make_unique<Impl>(verbosity);
+    impl->problem = build_lmi_problem(spec, verbosity);
+    impl->solver = make_sdp_solver(impl->problem, o, verbosity);
+    has_normalization_ = false;
+  }
+
+  Solver::~Solver() = default;
+
+  Solution_Data Solver::run(const Solver_Options &o)
+  {
+    std::lock_guard<std::mutex> lock(solve_mutex);
+    set_precision(o.precision);
+    Solver_Options options = o;
+    if(!has_normalization_)
+      options.want_z = false;
+    Solution_Data out
+      = run_existing(*impl->solver, *impl->problem.sdp, *impl->problem.block_info,
+                     *impl->problem.grid, options, impl->timers);
+    total_iterations_ += out.iterations;
+    return out;
+  }
+
+  Solution_Data Solver::state(const Solver_Options &o) const
+  {
+    std::lock_guard<std::mutex> lock(solve_mutex);
+    Solver_Options options = o;
+    if(!has_normalization_)
+      options.want_z = false;
+    return collect(*impl->solver, *impl->problem.sdp, *impl->problem.block_info,
+                   options, "", 0);
+  }
+
+  void Solver::set_y(const std::vector<std::string> &y)
+  {
+    std::lock_guard<std::mutex> lock(solve_mutex);
+    const size_t N = impl->problem.sdp->dual_objective_b.Height();
+    if(y.size() != N)
+      throw std::invalid_argument("y must have length " + std::to_string(N));
+    El::Matrix<El::BigFloat> y_local(N, 1);
+    for(size_t i = 0; i < N; ++i)
+      y_local(i, 0) = to_bigfloat(y[i]);
+    for(auto &block : impl->solver->y.blocks)
+      copy_matrix(y_local, block);
+  }
+
+  namespace
+  {
+    void set_block_diagonal(const Block_Info &block_info,
+                            const std::vector<Matrix_Data> &blocks,
+                            Block_Diagonal_Matrix &target, const char *name)
+    {
+      const size_t num_blocks = block_info.dimensions.size();
+      if(blocks.size() != 2 * num_blocks)
+        throw std::invalid_argument(std::string(name) + " needs 2 matrices per block");
+      for(size_t i = 0; i < block_info.block_indices.size(); ++i)
+        {
+          const size_t j = block_info.block_indices.at(i);
+          for(const size_t parity : {0, 1})
+            {
+              const auto &m = blocks.at(2 * j + parity);
+              auto &dist = target.blocks.at(2 * i + parity);
+              if(m.height != size_t(dist.Height())
+                 || m.width != size_t(dist.Width()))
+                throw std::invalid_argument(
+                  std::string(name) + " block " + std::to_string(j) + " parity "
+                  + std::to_string(parity) + " must be "
+                  + std::to_string(dist.Height()) + "x"
+                  + std::to_string(dist.Width()));
+              El::Matrix<El::BigFloat> local(m.height, m.width);
+              for(size_t r = 0; r < m.height; ++r)
+                for(size_t c = 0; c < m.width; ++c)
+                  local(r, c) = to_bigfloat(m.elements[r * m.width + c]);
+              copy_matrix(local, dist);
+            }
+        }
+    }
+  }
+
+  void Solver::set_X(const std::vector<Matrix_Data> &blocks)
+  {
+    std::lock_guard<std::mutex> lock(solve_mutex);
+    set_block_diagonal(*impl->problem.block_info, blocks, impl->solver->X, "X");
+  }
+
+  void Solver::set_Y(const std::vector<Matrix_Data> &blocks)
+  {
+    std::lock_guard<std::mutex> lock(solve_mutex);
+    set_block_diagonal(*impl->problem.block_info, blocks, impl->solver->Y, "Y");
+  }
+
+  void Solver::save_checkpoint(const std::string &directory) const
+  {
+    std::lock_guard<std::mutex> lock(solve_mutex);
+    if(directory.empty())
+      throw std::invalid_argument("checkpoint directory must not be empty");
+    Solver_Options o = default_solver_options();
+    o.checkpoint_in = directory;
+    o.checkpoint_out = directory;
+    const Solver_Parameters parameters = make_solver_parameters(o);
+    impl->solver->save_checkpoint(directory, impl->verbosity,
+                                  to_property_tree(parameters));
+  }
+
+  std::vector<size_t> Solver::dims() const
+  {
+    return impl->problem.block_info->dimensions;
+  }
+  std::vector<size_t> Solver::num_points() const
+  {
+    return impl->problem.block_info->num_points;
+  }
+  size_t Solver::num_variables() const
+  {
+    return impl->problem.sdp->dual_objective_b.Height();
   }
 }

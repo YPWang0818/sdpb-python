@@ -66,6 +66,16 @@ pmp = sdpb.read_pmp_json("pmp.json"); sdpb.write_pmp_json(pmp, "copy.json")
 sdp = pmp.to_sdp()        # what pmp2sdp would write (objectives, per-block c, B, bases)
 ```
 
+Keep the solver state between runs with a handle (warm starts, checkpoints,
+tighter thresholds; Ctrl-C raises `SolverInterrupted` with the partial solution):
+
+```python
+with pmp.solver(precision=768) as solver:
+    first = solver.run(max_iterations=50)
+    final = solver.run(duality_gap_threshold="1e-60")
+    solver.save_checkpoint("ck")
+```
+
 `SolverOptions` (or keyword overrides) mirror `sdpb`'s options in snake_case;
 `Solution` carries objectives, errors, `y`, `z`, and optionally `x`, `X`, `Y`,
 `c_minus_By`. See `docs/API_DESIGN.md`.

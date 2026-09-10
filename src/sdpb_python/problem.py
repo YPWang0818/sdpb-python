@@ -73,6 +73,31 @@ class Polynomial:
             self.coeffs = (self.coeffs,)  # a constant
         self.coeffs = tuple(self.coeffs) or (0,)
 
+    @classmethod
+    def from_sympy(cls, expr: Any, x: Any = None, digits: int = 300) -> "Polynomial":
+        """From a sympy expression polynomial in ``x`` (the only symbol if omitted).
+
+        Exact rationals stay exact (as ``Fraction``); other numbers are evaluated
+        to ``digits`` significant digits.
+        """
+        import sympy
+        from fractions import Fraction
+
+        expr = sympy.sympify(expr)
+        if x is None:
+            symbols = sorted(expr.free_symbols, key=str)
+            if len(symbols) > 1:
+                raise ValueError(f"expression has several symbols {symbols}; pass x explicitly")
+            x = symbols[0] if symbols else sympy.Symbol("x")
+        poly = sympy.Poly(sympy.expand(expr), x)
+        coeffs = []
+        for c in reversed(poly.all_coeffs()):  # low degree first
+            if c.is_Rational:
+                coeffs.append(Fraction(int(c.p), int(c.q)))
+            else:
+                coeffs.append(str(sympy.N(c, digits)))
+        return cls(coeffs)
+
     @property
     def degree(self) -> int:
         return len(self.coeffs) - 1
@@ -315,6 +340,14 @@ class PMP:
         except Exception as exc:
             raise wrap_cpp_error(exc) from None
         return SDPData._from_dict(d, precision)
+
+    def solver(self, options: SolverOptions | None = None, *, max_num_poles: int | None = None,
+               **overrides: Any):
+        """A :class:`~sdpb_python.handle.Solver` holding this problem's state."""
+        from .handle import Solver
+
+        opts = resolve(options, overrides)
+        return Solver("pmp", self._to_spec(effective_precision(opts.precision), max_num_poles), opts)
 
     def solve(self, options: SolverOptions | None = None, *, max_num_poles: int | None = None,
               **overrides: Any) -> Solution:
