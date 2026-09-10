@@ -1,7 +1,11 @@
 # sdpb-python
 
+[![docs](https://github.com/YPWang0818/sdpb-python/actions/workflows/docs.yml/badge.svg)](https://ypwang0818.github.io/sdpb-python/)
+
 Cython bindings for [a fork of SDPB](https://github.com/YPWang0818/sdpb), the
 semidefinite program solver used in the conformal bootstrap.
+
+**Documentation:** <https://ypwang0818.github.io/sdpb-python/>
 
 ## Layout
 
@@ -132,7 +136,9 @@ The legacy CLI passthrough remains as `sdpb.solve_dir(sdp_dir, out_dir, **cli_op
 
 ## Documentation
 
-The user guide and API reference live in `docs/` (Sphinx, Markdown sources):
+The user guide and API reference are published at
+<https://ypwang0818.github.io/sdpb-python/> (built by the `docs` GitHub
+Actions workflow on every push to `main`). To build them locally:
 
 ```
 pip install -e ".[docs]"
