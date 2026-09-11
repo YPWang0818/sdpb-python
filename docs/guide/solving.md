@@ -113,9 +113,33 @@ more iterations, where $n$ is the uninterrupted count.
 ## Errors
 
 Problems with the Python-side description raise `ValueError` or `TypeError`.
-Anything that goes wrong inside SDPB raises {class}`~sdpb_python.SDPBError`,
-whose message is the first line of SDPB's message and whose `details`
-attribute holds the full text including SDPB's stack trace.
+This includes a variable that multiplies only zero polynomials in every
+matrix: its column of the SDP would vanish and SDPB would abort deep inside
+the solver, so the {class}`~sdpb_python.PMP` constructor rejects it.
+
+Anything that goes wrong inside SDPB raises {class}`~sdpb_python.SDPBError`.
+`str(error)` is SDPB's message with the throwing source location in brackets,
+for example
+
+```
+Error when computing Cholesky decomposition of block_0: A was not numerically HPD: 2 3 -2.8e-115 [../src/sdp_solve/.../compute_Q.cxx:36 (initialize_schur_off_diagonal())]
+```
+
+`error.details` holds the full text SDPB produced, including its stack trace,
+and `error.location` the `file:line (function)` alone.
+
+## Unbounded and infeasible programs
+
+SDPB has no explicit "unbounded" or "infeasible" status. An unbounded program
+(for example maximise `y` subject to `1 + y x >= 0`) ends either with
+{attr}`~sdpb_python.TerminateReason.MAX_COMPLEMENTARITY_EXCEEDED` or with a
+Cholesky failure raised as an `SDPBError` ("not numerically HPD"), depending
+on precision and the iteration path. Code that searches over parameters
+should handle both. If only feasibility matters, `find_dual_feasible=True`
+or `find_primal_feasible=True` stop cleanly with a `*_FEASIBLE` status as soon
+as a feasible point is found, which is the usual way to run bisection
+searches. Thresholds far below what the precision can resolve (for example
+`1e-150` at 400 bits) also end in the Cholesky failure.
 
 sdpb-python supports a single MPI rank. Under `mpirun -n 2` the solve raises
 an `SDPBError` explaining this instead of hanging.

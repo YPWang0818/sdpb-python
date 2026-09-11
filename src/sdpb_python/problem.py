@@ -117,7 +117,14 @@ class Polynomial:
 
 def _is_negative(x: Any) -> bool:
     try:
-        return mpmath.mpf(str(x).strip()) < 0
+        return mpmath.mpf(_num.to_str(x, 128)) < 0
+    except Exception:
+        return False
+
+
+def _is_zero(x: Any) -> bool:
+    try:
+        return mpmath.mpf(_num.to_str(x, 128)) == 0
     except Exception:
         return False
 
@@ -375,6 +382,39 @@ class PMP:
             if m.num_vectors != n:
                 raise ValueError(f"matrices[{j}] has {m.num_vectors} polynomials per entry, "
                                  f"but objective has length {n}")
+        self._check_no_degenerate_variables()
+
+    def _check_no_degenerate_variables(self) -> None:
+        """Reject variables whose column of the SDP's B matrix would vanish.
+
+        SDPB eliminates the normalization through the component ``k`` with the
+        largest ``|n_k|``; the column of ``z_i`` (``i != k``) is built from
+        ``P_i - (n_i / n_k) P_k``.  If that is identically zero in every matrix,
+        the Schur complement ``Q`` is singular and SDPB aborts deep inside the
+        solver (``check_normalized_Q_diagonal``).  Catch it here instead.
+        """
+        n = len(self.objective)
+        nonzero = [False] * n
+        for m in self.matrices:
+            for row in m.polynomials:
+                for entry in row:
+                    for i, poly in enumerate(entry):
+                        if not nonzero[i] and any(not _is_zero(c) for c in poly.coeffs):
+                            nonzero[i] = True
+        if self.normalization is None:
+            k = 0
+            norm = [1] + [0] * (n - 1)
+        else:
+            norm = self.normalization
+            k = max(range(n), key=lambda i: abs(mpmath.mpf(_num.to_str(norm[i], 128))))
+        for i in range(n):
+            if i == k or nonzero[i]:
+                continue
+            if _is_zero(norm[i]) or not nonzero[k]:
+                raise ValueError(
+                    f"variable z_{i} multiplies only zero polynomials in every matrix, so its column "
+                    "of the SDP would vanish and SDPB would fail; drop the variable or give it a "
+                    "nonzero polynomial")
 
     @property
     def num_variables(self) -> int:
