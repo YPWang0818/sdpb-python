@@ -186,6 +186,7 @@ sphinx-build -b html docs docs/_build/html
 
 Then open `docs/_build/html/index.html`. Start with the quickstart
 (`docs/quickstart.md`) and the background page on what SDPB solves.
+`examples/tour.py` exercises the whole API against an installed package.
 
 ## Tests
 

@@ -109,3 +109,9 @@ pmp = sdpb.read_pmp_json("pmp.json")        # also .nsv lists of json files
 sdpb.write_pmp_json(pmp, "copy.json")
 sdp = pmp.to_sdp()                          # the sdp/ directory contents, in memory
 ```
+
+## A complete script
+
+`examples/tour.py` in the repository runs everything on this page (and the
+solver handle, checkpoints and error handling) against an installed package,
+asserting each result. It is a good smoke test of a fresh installation.
