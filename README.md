@@ -30,19 +30,34 @@ semidefinite program solver used in the conformal bootstrap.
 └── tests/                    # pytest suite mirroring SDPB's own tests
 ```
 
-## Install a wheel
+## Install
 
-Releases include self-contained wheels for Linux x86_64 and CPython 3.10 to
-3.13; pick the file for your Python version on the
-[releases page](https://github.com/YPWang0818/sdpb-python/releases) and
-`pip install` its URL. They bundle SDPB and all its libraries, including a
-private MPICH: do not load a second MPI (e.g. `mpi4py`) in the same process.
+Prebuilt wheels for Linux x86_64 (CPython 3.10 to 3.13) are attached to each
+[GitHub release](https://github.com/YPWang0818/sdpb-python/releases). Let pip
+pick the one for your Python:
 
-## Clone and build
+```
+pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.2.0
+```
 
-To build from source (other platforms, or to work on the C++ side): the SDPB
-sources are a git submodule pinned to the fork's `python-api` branch, so
-clone with submodules:
+or install a specific file directly:
+
+```
+pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.2.0/sdpb_python-0.2.0-cp312-cp312-manylinux_2_28_x86_64.whl
+```
+
+The wheels bundle SDPB and every library it needs (including a private MPICH,
+so do not load a second MPI such as `mpi4py` in the same process) and run on
+any Linux with glibc 2.28 or newer. Check the installation with:
+
+```
+python -c "import sdpb_python; print(sdpb_python.sdpb_version())"
+```
+
+## Build from source
+
+For other platforms, or to work on the C++ side. The SDPB sources are a git
+submodule pinned to the fork's `python-api` branch, so clone with submodules:
 
 ```
 git clone --recurse-submodules git@github.com:YPWang0818/sdpb-python.git

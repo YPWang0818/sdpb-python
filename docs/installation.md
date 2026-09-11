@@ -2,17 +2,29 @@
 
 ## Binary wheels (Linux x86_64)
 
-Each release on GitHub carries self-contained wheels for CPython 3.10 to
-3.13 on Linux x86_64 (glibc 2.28 or newer, i.e. any mainstream distribution
-from 2019 on). They bundle SDPB and every library it needs, so nothing has to
-be compiled:
+Each [release](https://github.com/YPWang0818/sdpb-python/releases) carries
+self-contained wheels for CPython 3.10 to 3.13 on Linux x86_64 (glibc 2.28 or
+newer, i.e. any mainstream distribution from 2019 on). They bundle SDPB and
+every library it needs, so nothing has to be compiled. Let pip choose the wheel
+for your Python from the release page:
+
+```
+pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.2.0
+```
+
+or install one file directly:
 
 ```
 pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.2.0/sdpb_python-0.2.0-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-Pick the file matching your Python version from the release page. Two things
-to know about the wheels:
+Then check:
+
+```
+python -c "import sdpb_python; print(sdpb_python.sdpb_version())"
+```
+
+Two things to know about the wheels:
 
 - They contain their own MPI library (MPICH), used only to initialise SDPB's
   single-process solver. Do not load another MPI in the same process, for

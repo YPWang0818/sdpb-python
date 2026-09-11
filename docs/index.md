@@ -7,7 +7,13 @@ solver as a library.
 
 With sdpb-python you describe a *polynomial matrix program* (or a plain linear
 matrix inequality) with Python objects, solve it in-process without writing
-SDPB's input directories, and get the solution back as `mpmath` numbers:
+SDPB's input directories, and get the solution back as `mpmath` numbers.
+On Linux x86_64 it installs from the prebuilt wheels of a release:
+
+```
+pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.2.0
+```
+
 
 ```python
 import sdpb_python as sdpb
