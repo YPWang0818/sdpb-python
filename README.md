@@ -56,8 +56,9 @@ python -c "import sdpb_python; print(sdpb_python.sdpb_version())"
 
 ## Build from source
 
-For other platforms, or to work on the C++ side. The SDPB sources are a git
-submodule pinned to the fork's `python-api` branch, so clone with submodules:
+For other platforms, to track fixes as they are committed, or to work on the
+C++ side. The SDPB sources are a git submodule pinned to the fork's
+`python-api` branch, so clone with submodules:
 
 ```
 git clone --recurse-submodules git@github.com:YPWang0818/sdpb-python.git
@@ -110,6 +111,20 @@ yourself.
 python -c "import sdpb_python; print(sdpb_python.sdpb_version())"
 pytest                              # about a minute; SDPB's own suite: c-src/sdpb/test/run_all_tests.sh
 ```
+
+### Editable install and picking up fixes
+
+`scripts/build_sdpb.sh` installs the package in editable mode into the active
+environment, so activate your own project's environment before running it and
+your project imports the library straight from this clone. Afterwards:
+
+```
+scripts/rebuild.sh --pull     # git pull, then rebuild only what changed
+```
+
+Pure-Python fixes need no rebuild; C++/Cython changes rebuild the extension
+(minutes); a moved SDPB submodule rebuilds SDPB first. Details and a Docker
+variant are in the documentation's "Development install" page.
 
 If MPI programs print "Authorization required, but no authorization protocol
 specified", that is X11 noise from a set `DISPLAY`; `unset DISPLAY` silences it.

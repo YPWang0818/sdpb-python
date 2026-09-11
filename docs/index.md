@@ -44,6 +44,7 @@ guide/solving
 guide/solver_handle
 guide/io
 guide/numbers
+guide/development
 guide/testing
 ```
 
