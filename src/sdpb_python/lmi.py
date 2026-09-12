@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from . import numbers as _num
+from . import _mpi
 from .errors import wrap_cpp_error
 from .options import SolverOptions, effective_precision, resolve
 from .solution import Solution
@@ -68,6 +69,7 @@ class LMI:
 
     def solve(self, options: SolverOptions | None = None, **overrides: Any) -> Solution:
         opts = resolve(options, overrides)
+        _mpi.check_single_process(_ext().mpi_size())
         try:
             d = _ext().solve_lmi(self._to_spec(effective_precision(opts.precision)), opts._to_dict())
         except Exception as exc:

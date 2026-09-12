@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from . import _mpi
+
 
 def _ext():
     """Import the compiled extension lazily with a helpful error message."""
@@ -100,5 +102,6 @@ def solve(
     """
     args = ["--sdpDir", os.fspath(sdp_dir), "--outDir", os.fspath(out_dir)]
     args += _to_cli(options)
+    _mpi.check_single_process(_ext().mpi_size())
     _ext().run(args)
     return SDPBResult.from_dir(out_dir)

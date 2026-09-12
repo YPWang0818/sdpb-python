@@ -8,6 +8,7 @@ from typing import Any, Sequence
 import mpmath
 
 from . import numbers as _num
+from . import _mpi
 from .errors import SDPBError, wrap_cpp_error
 from .options import SolverOptions, effective_precision, resolve
 from .solution import Solution, TerminateReason
@@ -43,6 +44,7 @@ class Solver:
     def __init__(self, kind: str, spec: dict, options: SolverOptions):
         self._options = options
         self._precision = effective_precision(options.precision)
+        _mpi.check_single_process(_ext().mpi_size())
         try:
             self._impl = _ext().Solver(kind, spec, options._to_dict())
         except Exception as exc:

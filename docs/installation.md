@@ -100,6 +100,13 @@ SDPB's full C++ tool chain.
 - The build links SDPB statically into the extension; the Elemental and
   MPSolve shared libraries are found through an rpath, so they must stay where
   they were at build time.
+- The package runs on one MPI rank. Launching several processes with an
+  `mpirun` or `srun` from a *different* MPI than the package links (the wheels
+  bundle MPICH) does not create a multi-rank job: each process initialises MPI
+  alone, and they would silently duplicate the work and overwrite each other's
+  output. That is refused with an error naming the launcher; set
+  `SDPB_PYTHON_ALLOW_MULTI_PROCESS=1` when the processes really are meant to be
+  independent, for example a sweep in which each writes to its own directory.
 - OpenBLAS selects its kernels at run time from the CPU family, and for an
   AMD family-15/17 CPU it takes Opteron kernels that use the 3DNow!
   instruction `femms`. QEMU/KVM guests with the default CPU model report such
