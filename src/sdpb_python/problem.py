@@ -368,6 +368,13 @@ class PMP:
         self.objective = list(self.objective)
         if not self.objective:
             raise ValueError("objective must not be empty")
+        if len(self.objective) == 1:
+            # The normalization n . z = 1 fixes the single component, leaving no
+            # free variable (N = 0); SDPB then fails an internal assertion
+            # (BigInt_Shared_Memory_Syrk_Context: input_window_split_factor > 0).
+            raise ValueError("objective needs at least two components: the normalization "
+                             "n . z = 1 fixes one of them, so a single component leaves "
+                             "no free variable to optimize over")
         if self.normalization is not None:
             self.normalization = list(self.normalization)
             if len(self.normalization) != len(self.objective):

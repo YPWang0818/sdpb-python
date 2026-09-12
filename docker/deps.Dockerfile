@@ -45,10 +45,16 @@ RUN curl --retry 5 -fsSL https://archives.boost.io/release/1.86.0/source/boost_1
        --with-libraries=date_time,filesystem,program_options,iostreams,serialization,system,stacktrace,process >/dev/null \
     && ./b2 -j$JOBS link=shared variant=release install >/dev/null && cd .. && rm -rf boost_1_86_0
 
-# FLINT 3.1
+# FLINT 3.1.  Its configure defaults to --enable-arch=native, i.e. -march=native,
+# which bakes the build host's ISA (AVX2 on GitHub runners) into libflint with
+# no run-time dispatch; the wheel then dies with SIGILL on CPUs without AVX.
+# --disable-arch keeps the compiler's baseline x86-64 code generation (AVX2 and
+# AVX-512 are already off by default).  GMP (--enable-fat) and OpenBLAS pick
+# their kernels at run time, so they are safe to tune.
 RUN curl --retry 5 -fsSL https://github.com/flintlib/flint/releases/download/v3.1.3/flint-3.1.3.tar.gz | tar xz \
     && cd flint-3.1.3 \
-    && ./configure --prefix=$DEPS --with-gmp=$DEPS --with-mpfr=$DEPS --disable-static >/dev/null \
+    && ./configure --prefix=$DEPS --with-gmp=$DEPS --with-mpfr=$DEPS --disable-static \
+       --disable-arch --disable-avx2 --disable-avx512 >/dev/null \
     && make -j$JOBS >/dev/null && make install >/dev/null && cd .. && rm -rf flint-3.1.3
 
 # Elemental (bootstrap-collaboration fork)

@@ -6,7 +6,7 @@
 
   ```
   python -m venv .venv && source .venv/bin/activate
-  pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.2.0
+  pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.2.1
   python examples/tour.py
   ```
 

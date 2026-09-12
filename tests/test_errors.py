@@ -57,6 +57,15 @@ def test_degenerate_variable_rejected():
             matrices=[PolynomialMatrix([[[Polynomial([0]), Polynomial([1, 1])]]])])
 
 
+def test_single_component_objective_rejected():
+    """n . z = 1 fixes a lone component; SDPB would assert in its shared-memory setup."""
+    with pytest.raises(ValueError, match="at least two components"):
+        PMP(objective=[1], normalization=[1],
+            matrices=[PolynomialMatrix([[[Polynomial([1, -1])]]])])
+    with pytest.raises(ValueError, match="at least two components"):
+        PMP(objective=[1], matrices=[PolynomialMatrix([[[Polynomial([1, -1])]]])])
+
+
 def test_real_cholesky_failure_message(sdpb_ext):
     """Over-tight thresholds make SDPB's Cholesky fail; the message must reach str(e)."""
     from tests.util.datasets import TEST_PRECISION

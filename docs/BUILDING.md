@@ -71,3 +71,9 @@ pytest
 - The integration test `pmp2sdp / filesystem errors / invalid_nsv` has been
   seen to fail intermittently because the captured stderr of an aborted MPI
   run came back empty. Rerunning it passes.
+- On some virtual machines OpenBLAS picks the wrong kernels and the first
+  `solve()` dies with `Illegal instruction` inside `libopenblas` (seen with
+  QEMU's default CPU model, which reports an AMD Opteron but lacks 3DNow!, so
+  OpenBLAS's Opteron kernel faults on `femms`). Force a generic kernel set
+  with `OPENBLAS_CORETYPE=NEHALEM` (or `PRESCOTT`) in the environment; this
+  applies to the wheels and to source builds alike.

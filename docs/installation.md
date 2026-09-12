@@ -9,13 +9,13 @@ every library it needs, so nothing has to be compiled. Let pip choose the wheel
 for your Python from the release page:
 
 ```
-pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.2.0
+pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.2.1
 ```
 
 or install one file directly:
 
 ```
-pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.2.0/sdpb_python-0.2.0-cp312-cp312-manylinux_2_28_x86_64.whl
+pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.2.1/sdpb_python-0.2.1-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
 Then check:
@@ -100,6 +100,12 @@ SDPB's full C++ tool chain.
 - The build links SDPB statically into the extension; the Elemental and
   MPSolve shared libraries are found through an rpath, so they must stay where
   they were at build time.
+- On some virtual machines OpenBLAS picks the wrong kernels and the first
+  `solve()` dies with `Illegal instruction` inside `libopenblas` (seen with
+  QEMU's default CPU model, which reports an AMD Opteron but lacks 3DNow!, so
+  OpenBLAS's Opteron kernel faults on `femms`). Force a generic kernel set
+  with `OPENBLAS_CORETYPE=NEHALEM` (or `PRESCOTT`) in the environment; this
+  applies to the wheels and to source builds alike.
 
 ## How the wheels are made
 
@@ -110,5 +116,6 @@ installed under `/opt/deps` (`docker/deps.Dockerfile`) and pushes it to
 `cibuildwheel` in that image on every `v*` tag: it builds SDPB's static
 libraries once, builds the extension for each Python version, repairs the
 wheels so they bundle every shared library, runs the test-suite inside each,
-and attaches them to the GitHub release. The same image can be pulled locally
-to reproduce a build.
+checks with `scripts/check_wheel_isa.sh` that no bundled library has AVX code
+baked in (the `manylinux` tag fixes glibc, not the CPU), and attaches them to
+the GitHub release. The same image can be pulled locally to reproduce a build.

@@ -24,6 +24,8 @@ jobs:
           python-version: "3.12"
       - run: pip install cibuildwheel==3.2.1
       - run: cibuildwheel --output-dir wheelhouse
+      # The wheels must run on any x86-64 CPU, not just the AVX2 build host.
+      - run: scripts/check_wheel_isa.sh wheelhouse/*.whl
       - uses: actions/upload-artifact@v4
         with:
           name: wheels
