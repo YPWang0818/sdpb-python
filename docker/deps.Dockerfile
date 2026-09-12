@@ -12,8 +12,9 @@ ENV LD_LIBRARY_PATH=$DEPS/lib:$DEPS/lib64
 # GMP, MPFR and Boost from the distribution are too old for SDPB and are
 # built from source below.  The image's own cmake is 4.x, which refuses
 # Elemental's old cmake_minimum_required, so the distribution's 3.26 is used.
+# OpenBLAS is deliberately not taken from the distribution: see below.
 RUN dnf -y install epel-release && dnf config-manager --set-enabled powertools \
-    && dnf -y install libarchive-devel libxml2-devel metis-devel openblas-devel \
+    && dnf -y install libarchive-devel libxml2-devel metis-devel \
        rapidjson-devel cmake autoconf automake libtool bison flex xz bzip2 \
        gcc-toolset-14-gcc-gfortran \
     && dnf clean all
@@ -57,10 +58,29 @@ RUN curl --retry 5 -fsSL https://github.com/flintlib/flint/releases/download/v3.
        --disable-arch --disable-avx2 --disable-avx512 >/dev/null \
     && make -j$JOBS >/dev/null && make install >/dev/null && cd .. && rm -rf flint-3.1.3
 
-# Elemental (bootstrap-collaboration fork)
+# OpenBLAS with run-time kernel selection (DYNAMIC_ARCH) restricted to targets
+# without 3DNow! code.  The distribution's OpenBLAS also dispatches at run time,
+# but its list includes the OPTERON targets, whose GEMM copy kernels start with
+# the 3DNow! instruction `femms`; OpenBLAS picks them for any AMD family-15/17
+# CPU, and QEMU's default CPU model is exactly that yet has no 3DNow!, so the
+# v0.2.1 wheel died with SIGILL there.  With the OPTERON targets left out of
+# DYNAMIC_LIST such CPUs get the NEHALEM kernels (verified on a qemu64 guest;
+# the always-built plain-SSE3 PRESCOTT kernels are the last resort).
+# NUM_THREADS bounds the thread pool; NO_AFFINITY keeps OpenBLAS from pinning
+# threads in a library that runs inside Python.
+RUN curl --retry 5 -fsSL https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.34/OpenBLAS-0.3.34.tar.gz | tar xz \
+    && cd OpenBLAS-0.3.34 \
+    && make -j$JOBS DYNAMIC_ARCH=1 DYNAMIC_LIST="NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN" \
+       NO_AFFINITY=1 USE_OPENMP=0 NUM_THREADS=64 >/dev/null \
+    && make PREFIX=$DEPS DYNAMIC_ARCH=1 DYNAMIC_LIST="NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN" \
+       NO_AFFINITY=1 USE_OPENMP=0 NUM_THREADS=64 install >/dev/null \
+    && cd .. && rm -rf OpenBLAS-0.3.34
+
+# Elemental (bootstrap-collaboration fork), linked against the OpenBLAS above
 RUN git clone --depth=1 https://gitlab.com/bootstrapcollaboration/elemental.git \
     && mkdir elemental/build && cd elemental/build \
     && CC=mpicc CXX=mpicxx $CMAKE .. -DCMAKE_INSTALL_PREFIX=$DEPS -DCMAKE_BUILD_TYPE=Release \
+       -DMATH_LIBS="-L$DEPS/lib -lopenblas" \
        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DGMP_INCLUDES=$DEPS/include -DGMP_LIBRARIES=$DEPS/lib/libgmp.so \
        -DMPFR_INCLUDES=$DEPS/include -DMPFR_LIBRARIES=$DEPS/lib/libmpfr.so \
        -DGMPXX_INCLUDES=$DEPS/include -DGMPXX_LIBRARIES=$DEPS/lib/libgmpxx.so >/dev/null \
@@ -77,13 +97,8 @@ RUN git clone --depth=1 https://github.com/robol/MPSolve.git \
     && make -j$JOBS >/dev/null && make install >/dev/null && cd .. && rm -rf MPSolve
 
 # RapidJSON: the distribution's 1.1.0 (2016) does not compile with GCC 14,
-# so take the header-only library from upstream master.  The distribution's
-# OpenBLAS lives under /usr; expose it under $DEPS too so that a single
-# --*-dir suffices.
+# so take the header-only library from upstream master.
 RUN git clone --depth=1 https://github.com/Tencent/rapidjson.git \
-    && cp -r rapidjson/include/rapidjson $DEPS/include/rapidjson && rm -rf rapidjson \
-    && ln -s /usr/include/openblas $DEPS/include/openblas \
-    && for f in /usr/lib64/libopenblas*.so*; do ln -sf $f $DEPS/lib/$(basename $f); done \
-    && ln -sf /usr/include/openblas/cblas.h $DEPS/include/cblas.h
+    && cp -r rapidjson/include/rapidjson $DEPS/include/rapidjson && rm -rf rapidjson
 
 WORKDIR /

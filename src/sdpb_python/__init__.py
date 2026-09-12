@@ -1,6 +1,11 @@
 """Python bindings for a fork of SDPB (https://github.com/YPWang0818/sdpb)."""
 
-from .errors import SDPBError
+from . import _cpu
+
+# Must run before the extension (and with it libopenblas) is first loaded.
+_cpu.apply()
+
+from .errors import SDPBError  # noqa: E402
 from .handle import Solver, SolverInterrupted
 from .io import read_pmp_json, write_pmp_json
 from .lmi import LMI

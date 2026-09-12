@@ -71,9 +71,13 @@ pytest
 - The integration test `pmp2sdp / filesystem errors / invalid_nsv` has been
   seen to fail intermittently because the captured stderr of an aborted MPI
   run came back empty. Rerunning it passes.
-- On some virtual machines OpenBLAS picks the wrong kernels and the first
-  `solve()` dies with `Illegal instruction` inside `libopenblas` (seen with
-  QEMU's default CPU model, which reports an AMD Opteron but lacks 3DNow!, so
-  OpenBLAS's Opteron kernel faults on `femms`). Force a generic kernel set
-  with `OPENBLAS_CORETYPE=NEHALEM` (or `PRESCOTT`) in the environment; this
-  applies to the wheels and to source builds alike.
+- OpenBLAS selects its kernels at run time from the CPU family, and for an
+  AMD family-15/17 CPU it takes Opteron kernels that use the 3DNow!
+  instruction `femms`. QEMU/KVM guests with the default CPU model report such
+  a family without 3DNow!, so the first `solve()` died with `Illegal
+  instruction` inside `libopenblas` (v0.2.1 wheels and source builds alike).
+  The package now sets `OPENBLAS_CORETYPE` itself on such CPUs before
+  OpenBLAS loads (module `sdpb_python._cpu`; an existing setting is kept),
+  and the wheels' OpenBLAS is built without the Opteron targets. On a source
+  build, `OPENBLAS_CORETYPE=NEHALEM` in the environment is the manual
+  equivalent.
