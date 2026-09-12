@@ -16,7 +16,7 @@ Decisions already taken:
 | Inputs | In-memory polynomial matrix programs (PMP) and in-memory linear matrix inequalities (LMI). File inputs (`pmp.json`, `sdp/`) and post-processing tools (`spectrum`, `approx_objective`) are out of scope for now. |
 | Fork | Patches to `YPWang0818/sdpb` are allowed (branch `python-api`, kept upstream-mergeable). |
 | Numbers | `mpmath.mpf` at the Python boundary. |
-| Parallelism | Single process. MPI is initialised (SDPB requires it) but `mpirun -n>1` is unsupported and rejected. |
+| Parallelism | Single process, single MPI rank; the package starts no processes of its own. MPI is initialised because SDPB requires it, and `mpirun -n>1` is rejected. See §2.1. |
 
 Constraints from the C++ side that shape the design (api-doc §2):
 
@@ -62,6 +62,52 @@ Design rule: everything crossing the Cython boundary is `std::string`,
 `std::vector`, `int64_t`, `bool`, or a struct of those. No Elemental, Boost or
 GMP types are visible to Cython. This keeps `.pxd` files trivial and lets the C++
 shim be unit-tested on its own.
+
+### 2.1 Parallelism: what the package does and does not do
+
+The package adds **no process-level parallelism**. A solve runs in the calling
+process, on the calling thread. There is no `multiprocessing`, no
+`concurrent.futures`, no `fork`, no worker subprocess, and no MPI rank beyond
+the one the caller is already running in. Starting several solves at once is
+the caller's business, not the library's.
+
+MPI is inherited plumbing, not a feature of this API. SDPB is written as an MPI
+program: it spreads SDP blocks over ranks, uses Elemental for the distributed
+linear algebra, and `Environment::initialize()` builds a shared-memory
+communicator and broadcasts to work out how many nodes the job spans. None of
+that links or runs without an MPI library, so the shim keeps one `Environment`
+alive for the life of the module (Elemental may be initialised only once per
+process) and every entry point calls `require_single_rank()` first. The
+collectives still execute, over a group of one, which costs almost nothing and
+keeps the code identical to the cluster build. Results are copied out through
+`DistMatrix<STAR,STAR>` for the same reason.
+
+What does run in parallel sits below the API: the bundled OpenBLAS is a
+pthread build (`libopenblasp`), so the double-precision GEMMs inside a solve
+use every core, under `OPENBLAS_NUM_THREADS`. Users who want several solves at
+once run independent Python processes, each with its own `output_dir`.
+
+Two consequences follow, both implemented:
+
+- **A second MPI in the process is unsafe.** The wheels bundle their own MPICH;
+  loading another MPI, e.g. `mpi4py` built against Open MPI, in the same
+  process is unsupported.
+- **A foreign launcher cannot be caught by `require_single_rank()`.** Under an
+  `mpirun` from a different MPI than the package links, each process
+  initialises MPI alone and sees a world of one, so the C++ check never fires
+  and the processes silently duplicate the solve and overwrite each other's
+  output (verified: four Open MPI ranks running the MPICH wheel left every
+  `iterations.json` in a shared directory unparseable). `_mpi.py` therefore
+  compares the job size the launcher advertises in the environment
+  (`OMPI_COMM_WORLD_SIZE`, `PMI_SIZE`, `MV2_COMM_WORLD_SIZE`, `SLURM_NTASKS`,
+  `SLURM_STEP_NUM_TASKS`) with the world the extension reports, and raises
+  before any work starts. `SDPB_PYTHON_ALLOW_MULTI_PROCESS=1` opts out, for
+  deliberately independent processes such as a sweep. A real multi-rank world
+  stays the C++ check's to reject.
+
+If the single-rank restriction is ever lifted, this section is the list of
+things that have to change: the `require_single_rank()` calls, the launcher
+check, and the assumption that every block lives on the caller's rank.
 
 ## 3. Numbers at the boundary
 
