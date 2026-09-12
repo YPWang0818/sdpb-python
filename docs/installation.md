@@ -111,7 +111,8 @@ SDPB's full C++ tool chain.
   AMD family-15/17 CPU it takes Opteron kernels that use the 3DNow!
   instruction `femms`. QEMU/KVM guests with the default CPU model report such
   a family without 3DNow!, so the first `solve()` died with `Illegal
-  instruction` inside `libopenblas` (v0.2.1 wheels and source builds alike).
+  instruction` inside `libopenblas` (wheel builds before this fix and source
+  builds against a system OpenBLAS alike).
   The package now sets `OPENBLAS_CORETYPE` itself on such CPUs before
   OpenBLAS loads (module `sdpb_python._cpu`; an existing setting is kept),
   and the wheels' OpenBLAS is built without the Opteron targets. On a source

@@ -49,10 +49,10 @@ pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.2.1/s
 The wheels bundle SDPB and every library it needs (including a private MPICH,
 so do not load a second MPI such as `mpi4py` in the same process, and do not
 launch them with an `mpirun` from another MPI) and run on
-any x86-64 Linux with glibc 2.28 or newer. (Two earlier releases crash with
-`Illegal instruction` in the first solve on some machines: v0.2.0 needs a CPU
-with AVX, and v0.2.1 fails on QEMU/KVM guests with the default CPU model;
-later releases fix both.) Check the installation with:
+any x86-64 Linux with glibc 2.28 or newer, including QEMU/KVM guests with the
+default CPU model. (The withdrawn v0.2.0 wheels required a CPU with AVX and
+crashed with `Illegal instruction` elsewhere; v0.2.1 and later run everywhere.)
+Check the installation with:
 
 ```
 python -c "import sdpb_python; print(sdpb_python.sdpb_version())"
