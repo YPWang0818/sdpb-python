@@ -1,6 +1,7 @@
 """T7: process-level behaviour (MPI ranks, Ctrl-C, leaks, sympy)."""
 
 import os
+import re
 import resource
 import shutil
 import signal
@@ -18,8 +19,36 @@ ENV = {**os.environ, "PYTHONPATH": f"{REPO}{os.pathsep}{os.environ.get('PYTHONPA
 ENV.pop("DISPLAY", None)
 
 
+def _linked_mpi_family(path: str) -> str | None:
+    """``"mpich"`` or ``"openmpi"`` for the MPI an ELF file links, ``None`` if unknown."""
+    out = subprocess.run(["ldd", path], capture_output=True, text=True).stdout
+    match = re.search(r"libmpi[-\w.]*\.so\.(\d+)", out)
+    if match is None:
+        return None
+    # MPICH and the implementations sharing its ABI (Intel MPI, MVAPICH) are soname 12.
+    return "mpich" if match.group(1) == "12" else "openmpi"
+
+
+def _mpirun_family() -> str | None:
+    """Which MPI the ``mpirun`` on PATH belongs to, or ``None`` if unrecognised."""
+    proc = subprocess.run(["mpirun", "--version"], capture_output=True, text=True)
+    text = proc.stdout + proc.stderr
+    if "Open MPI" in text or "OpenRTE" in text:
+        return "openmpi"
+    if "HYDRA" in text or "MPICH" in text or "Intel(R) MPI" in text:
+        return "mpich"
+    return None
+
+
 @pytest.mark.skipif(shutil.which("mpirun") is None, reason="mpirun not available")
 def test_two_ranks_rejected(sdpb_ext):
+    # The wheels bundle their own MPI (MPICH).  Launched by a foreign mpirun, each
+    # process joins no job and runs as an independent singleton, so it solves instead
+    # of seeing a second rank; that is the documented limitation, not a failure.
+    linked, launcher = _linked_mpi_family(sdpb_ext.__file__), _mpirun_family()
+    if linked and launcher and linked != launcher:
+        pytest.skip(f"package links {linked}, mpirun is {launcher}: "
+                    "ranks would run as independent singletons")
     code = (
         "import sdpb_python\n"
         f"pmp = sdpb_python.read_pmp_json({str(ONE_D)!r})\n"
