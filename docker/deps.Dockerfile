@@ -154,8 +154,13 @@ COPY --from=flint $DEPS $DEPS
 COPY --from=boost $DEPS $DEPS
 
 # RapidJSON: the distribution's 1.1.0 (2016) does not compile with GCC 14,
-# so take the header-only library from upstream master.
-RUN git clone --depth=1 https://github.com/Tencent/rapidjson.git \
-    && cp -r rapidjson/include/rapidjson $DEPS/include/rapidjson && rm -rf rapidjson
+# so take the header-only library from upstream master. There is no release
+# after 1.1.0, so pin a commit: a moving branch would make the image
+# unreproducible.
+ARG RAPIDJSON_COMMIT=24b5e7a8b27f42fa16b96fc70aade9106cf7102f
+RUN mkdir rapidjson && cd rapidjson && git init -q \
+    && git fetch -q --depth=1 https://github.com/Tencent/rapidjson.git $RAPIDJSON_COMMIT \
+    && git checkout -q FETCH_HEAD \
+    && cp -r include/rapidjson $DEPS/include/rapidjson && cd .. && rm -rf rapidjson
 
 WORKDIR /
