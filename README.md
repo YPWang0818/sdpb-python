@@ -37,13 +37,13 @@ Prebuilt wheels for Linux x86_64 (CPython 3.10 to 3.13) are attached to each
 pick the one for your Python:
 
 ```
-pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.2.1
+pip install sdpb-python --find-links https://github.com/YPWang0818/sdpb-python/releases/expanded_assets/v0.3.0
 ```
 
 or install a specific file directly:
 
 ```
-pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.2.1/sdpb_python-0.2.1-cp312-cp312-manylinux_2_28_x86_64.whl
+pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.3.0/sdpb_python-0.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 ```
 
 The wheels bundle SDPB and every library it needs (including a private MPICH
