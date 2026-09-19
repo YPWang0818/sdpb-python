@@ -105,9 +105,19 @@ Two consequences follow, both implemented:
   deliberately independent processes such as a sweep. A real multi-rank world
   stays the C++ check's to reject.
 
+- **The bundled MPI has no network module.** MPICH's default `tcp` module
+  opens a listener on 0.0.0.0 in `MPI_Init` even for one process, and its
+  connection state machine asserts on a foreign first packet, so any port
+  scan or stray connection aborted a running solve (v0.2.1 and earlier). The
+  wheels' MPICH is configured with `--with-device=ch3:nemesis:none`: same
+  shared-memory channel, no sockets. (`docker/deps.Dockerfile` also patches
+  that module's empty business card, which otherwise breaks `mpirun -n>1`.)
+  `tests/test_process.py::test_wheel_opens_no_network_listener` guards it.
+
 If the single-rank restriction is ever lifted, this section is the list of
 things that have to change: the `require_single_rank()` calls, the launcher
-check, and the assumption that every block lives on the caller's rank.
+check, the network-less MPICH (multi-node runs need a network module), and
+the assumption that every block lives on the caller's rank.
 
 ## 3. Numbers at the boundary
 

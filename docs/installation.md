@@ -29,6 +29,14 @@ Two things to know about the wheels:
 - They contain their own MPI library (MPICH), used only to initialise SDPB's
   single-process solver. Do not load another MPI in the same process, for
   example `mpi4py` built against OpenMPI.
+- They open no network sockets. The bundled MPICH is built without a network
+  module, so a solve cannot be reached, or disturbed, from the network. (Up to
+  v0.2.1 the bundled MPICH listened on a random TCP port on all interfaces,
+  and any foreign connection to it, such as a port scan on a shared server,
+  aborted the running process with `Assertion failed in file
+  .../netmod/tcp/socksm.c`. If you must keep such a version, run it in a
+  private network namespace: `unshare --user --map-root-user --net bash -c
+  'ip link set lo up; python script.py'`.)
 - They are built with a portable OpenBLAS and generic x86_64 code; a native
   build tuned for your CPU can be somewhat faster.
 
@@ -107,6 +115,14 @@ SDPB's full C++ tool chain.
   output. That is refused with an error naming the launcher; set
   `SDPB_PYTHON_ALLOW_MULTI_PROCESS=1` when the processes really are meant to be
   independent, for example a sweep in which each writes to its own directory.
+- A source build links the system's MPI, which may listen on the network
+  even for one process. Open MPI opens a TCP port on all interfaces; setting
+  `OMPI_MCA_btl=^tcp` in the environment avoids it (the package never
+  communicates between hosts). An MPICH built with its default `tcp` network
+  module additionally *aborts* the process when something that is not MPICH
+  connects to that port; configure MPICH with
+  `--with-device=ch3:nemesis:none`, as the wheels do, or run in a private
+  network namespace.
 - OpenBLAS selects its kernels at run time from the CPU family, and for an
   AMD family-15/17 CPU it takes Opteron kernels that use the 3DNow!
   instruction `femms`. QEMU/KVM guests with the default CPU model report such

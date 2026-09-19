@@ -46,9 +46,10 @@ or install a specific file directly:
 pip install https://github.com/YPWang0818/sdpb-python/releases/download/v0.2.1/sdpb_python-0.2.1-cp312-cp312-manylinux_2_28_x86_64.whl
 ```
 
-The wheels bundle SDPB and every library it needs (including a private MPICH,
-so do not load a second MPI such as `mpi4py` in the same process, and do not
-launch them with an `mpirun` from another MPI) and run on
+The wheels bundle SDPB and every library it needs (including a private MPICH
+built without networking, so they open no sockets; do not load a second MPI
+such as `mpi4py` in the same process, and do not launch them with an `mpirun`
+from another MPI) and run on
 any x86-64 Linux with glibc 2.28 or newer, including QEMU/KVM guests with the
 default CPU model. (The withdrawn v0.2.0 wheels required a CPU with AVX and
 crashed with `Illegal instruction` elsewhere; v0.2.1 and later run everywhere.)

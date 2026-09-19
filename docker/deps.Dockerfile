@@ -32,10 +32,27 @@ RUN curl --retry 5 -fsSL https://ftp.gnu.org/gnu/mpfr/mpfr-4.2.1.tar.xz | tar xJ
     && cd mpfr-4.2.1 && ./configure --prefix=$DEPS --with-gmp=$DEPS >/dev/null \
     && make -j$JOBS >/dev/null && make install >/dev/null && cd .. && rm -rf mpfr-4.2.1
 
-# MPICH (single library, works as a singleton without mpiexec; bundled into wheels)
+# MPICH (single library, works as a singleton without mpiexec; bundled into wheels).
+# The nemesis channel is built with the `none` network module instead of the
+# default `tcp`: with tcp, MPI_Init opens a TCP listener on 0.0.0.0 even for a
+# single process, and MPICH's connection state machine (socksm.c) *asserts*
+# when the first packet on an incoming connection is not an MPICH handshake,
+# so any port scan or stray connection aborted a running solve (v0.2.1 and
+# earlier).  The package runs on one rank and never talks to another node;
+# shared-memory communication between ranks on one host (mpirun -n 2 in the
+# tests) does not use the network module.  Only MPI_Open_port/MPI_Comm_spawn
+# need it, and SDPB uses neither.
+# The sed works around a bug in MPICH 4.2.3's `none` module: it leaves the
+# process's business card empty, the PMI `put` then carries an empty value, and
+# hydra dies with "unable to parse PMI command" for any mpirun -n>1.  A dummy
+# entry keeps multi-rank launches working, so that they reach this package's
+# own "supports a single MPI rank" error.
 RUN curl --retry 5 -fsSL https://www.mpich.org/static/downloads/4.2.3/mpich-4.2.3.tar.gz | tar xz \
     && cd mpich-4.2.3 \
-    && ./configure --prefix=$DEPS --disable-fortran --with-device=ch3:nemesis \
+    && NONE=src/mpid/ch3/channels/nemesis/netmod/none/none.c \
+    && sed -i '0,/^    return MPI_SUCCESS;$/s//    MPL_str_add_string_arg(bc_val_p, val_max_sz_p, "netmod", "none");\n    return MPI_SUCCESS;/' $NONE \
+    && grep -A3 '^static int nm_init' $NONE | grep -q MPL_str_add_string_arg \
+    && ./configure --prefix=$DEPS --disable-fortran --with-device=ch3:nemesis:none \
        --enable-shared --disable-static >/dev/null \
     && make -j$JOBS >/dev/null && make install >/dev/null && cd .. && rm -rf mpich-4.2.3
 

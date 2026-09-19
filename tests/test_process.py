@@ -40,6 +40,55 @@ def _mpirun_family() -> str | None:
     return None
 
 
+def _own_listening_sockets() -> list[str]:
+    """TCP sockets this process holds in LISTEN state, from /proc (no external tools)."""
+    inodes = set()
+    for fd in os.listdir("/proc/self/fd"):
+        try:
+            match = re.match(r"socket:\[(\d+)\]", os.readlink(f"/proc/self/fd/{fd}"))
+        except OSError:
+            continue
+        if match:
+            inodes.add(match.group(1))
+    found = []
+    for table in ("tcp", "tcp6"):
+        try:
+            with open(f"/proc/net/{table}") as f:
+                rows = f.read().splitlines()[1:]
+        except OSError:
+            continue
+        for row in rows:
+            fields = row.split()
+            if fields[3] == "0A" and fields[9] in inodes:  # 0A = TCP_LISTEN
+                address, port = fields[1].rsplit(":", 1)
+                found.append(f"{table} {address}:{int(port, 16)}")
+    return found
+
+
+def _bundles_its_mpi(path: str) -> bool:
+    """True for a wheel, whose MPI lives in ``sdpb_python.libs`` next to the package."""
+    out = subprocess.run(["ldd", path], capture_output=True, text=True).stdout
+    return any("libmpi" in line and "sdpb_python.libs" in line for line in out.splitlines())
+
+
+def test_wheel_opens_no_network_listener(sdpb_ext):
+    """The bundled MPI must not listen on the network (bug report against v0.2.1).
+
+    Built with its default tcp network module, MPICH opens a listener on
+    0.0.0.0 in MPI_Init even for one process, and aborts the process when
+    anything that is not MPICH connects to it, e.g. a port scan on a shared
+    server.  The wheels therefore bundle an MPICH without a network module.
+    A source build links the system's MPI, which this package cannot control.
+    """
+    if not _bundles_its_mpi(sdpb_ext.__file__):
+        pytest.skip("source build against a system MPI; only the wheels' bundled MPI is checked")
+    sdpb_ext.initialize()
+    from sdpb_python import LMI
+
+    LMI(b=[1], blocks=[([[1, 0], [0, 1]], [[0, 1], [1, 0]])]).solve()
+    assert _own_listening_sockets() == []
+
+
 @pytest.mark.skipif(shutil.which("mpirun") is None, reason="mpirun not available")
 def test_two_ranks_rejected(sdpb_ext):
     # The wheels bundle their own MPI (MPICH).  Launched by a foreign mpirun, each
