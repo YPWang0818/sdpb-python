@@ -22,7 +22,7 @@ semidefinite program solver used in the conformal bootstrap.
 │   ├── solution.py           # Solution, TerminateReason
 │   ├── io.py                 # read_pmp_json / write_pmp_json
 │   ├── numbers.py            # mpmath <-> decimal strings
-│   ├── solver.py             # legacy CLI passthrough (solve_dir)
+│   ├── solver.py             # access to the compiled extension, sdpb_version
 │   ├── _sdpb.pyx, sdpb_wrapper.pxd   # Cython layer
 │   └── cpp/sdpb_wrapper.*    # C++ shim over SDPB
 ├── scripts/build_sdpb.sh     # waf configure + build + pip install -e .
@@ -74,11 +74,12 @@ git submodule update --init --recursive
 
 ### 1. Dependencies
 
-SDPB needs a C++17 compiler, MPI, Boost, GMP, MPFR, FLINT, libarchive,
-libxml2, RapidJSON, a CBLAS, plus the
-[bootstrap-collaboration fork of Elemental](https://gitlab.com/bootstrapcollaboration/elemental)
-and [MPSolve](https://github.com/robol/MPSolve), which are usually built from
-source. `docs/BUILDING.md` is a tested step-by-step recipe for Ubuntu 24.04
+The extension needs a C++17 compiler, MPI, Boost (headers, `program_options`,
+`serialization`), GMP, MPFR, FLINT, RapidJSON, a CBLAS, plus the
+[bootstrap-collaboration fork of Elemental](https://gitlab.com/bootstrapcollaboration/elemental),
+which is usually built from source. SDPB is configured with `--libs-only`, so
+the packages only its command-line tools use (MPSolve, libxml2, libarchive)
+are not needed. `docs/BUILDING.md` is a tested step-by-step recipe for Ubuntu 24.04
 that installs the source-built libraries to `~/install`; SDPB's own
 `c-src/sdpb/Install.md` covers other systems.
 
@@ -97,7 +98,7 @@ scripts/build_sdpb.sh
 
 The script runs `waf configure` with `-fPIC` (SDPB's static libraries are
 linked into a Python shared object), `waf build`, and then
-`pip install --no-build-isolation -e .`. It looks for Elemental and MPSolve
+`pip install --no-build-isolation -e .`. It looks for Elemental
 under `$DEPS_PREFIX` (default `~/install`); extra arguments go to
 `waf configure`, and `JOBS` sets the build parallelism:
 
@@ -176,7 +177,9 @@ with pmp.solver(precision=768) as solver:
 `Solution` carries objectives, errors, `y`, `z`, and optionally `x`, `X`, `Y`,
 `c_minus_By`. See `docs/API_DESIGN.md`.
 
-The legacy CLI passthrough remains as `sdpb.solve_dir(sdp_dir, out_dir, **cli_options)`.
+`solve_dir`, the passthrough to SDPB's command line on an `sdp/` directory, was
+removed in 0.3.0 together with the libraries only it needed; build the problem
+with `read_pmp_json` or the classes above instead.
 
 ## Documentation
 
@@ -208,7 +211,7 @@ sdpb-python is released under the [MIT License](LICENSE), the same license
 as SDPB itself. The SDPB fork in `c-src/sdpb` keeps its own MIT license and
 copyright (David Simmons-Duffin and contributors). The compiled extension
 links dynamically against Elemental (BSD-2), GMP and MPFR (LGPL), FLINT
-(LGPL-2.1+), Boost (BSL-1.0), libarchive (BSD-2), libxml2 (MIT) and a CBLAS
-such as OpenBLAS (BSD-3); these are not distributed with this repository.
-MPSolve (GPL-3) is needed to build SDPB's `spectrum` tool but is not linked
-into the Python extension.
+(LGPL-2.1+), Boost (BSL-1.0) and a CBLAS such as OpenBLAS (BSD-3); these are
+not distributed with this repository. MPSolve (GPL-3), which SDPB's
+`spectrum` tool uses, is neither needed to build the extension nor linked
+into it.

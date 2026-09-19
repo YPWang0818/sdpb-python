@@ -50,11 +50,17 @@ SDPB's full C++ tool chain.
 ### Requirements
 
 - Python 3.10 or newer, with `mpmath`.
-- A C++17 compiler and an MPI implementation (`mpicxx`), Boost, GMP with C++
-  bindings, MPFR, FLINT (2.8 or newer), libarchive, libxml2, RapidJSON, and a
-  CBLAS such as OpenBLAS.
-- The [bootstrap-collaboration fork of Elemental](https://gitlab.com/bootstrapcollaboration/elemental)
-  and [MPSolve](https://github.com/robol/MPSolve), normally built from source.
+- A C++17 compiler and an MPI implementation (`mpicxx`), Boost (headers and
+  the compiled `program_options` and `serialization` libraries), GMP with C++
+  bindings, MPFR, FLINT (2.8 or newer), RapidJSON, and a CBLAS such as
+  OpenBLAS.
+- The [bootstrap-collaboration fork of Elemental](https://gitlab.com/bootstrapcollaboration/elemental),
+  normally built from source.
+
+SDPB itself also lists MPSolve, libxml2 and libarchive. Only its command-line
+tools use them; the build script configures SDPB with `--libs-only`, which
+builds just the four static libraries the extension links and does not look
+for those packages.
 
 {doc}`building` is a tested, step-by-step recipe for Ubuntu 24.04; SDPB's own
 `Install.md` in the submodule covers other systems and HPC sites.
@@ -82,7 +88,7 @@ SDPB's full C++ tool chain.
    ```
 
    The script configures SDPB's waf build with `-fPIC`, builds it, and runs
-   `pip install --no-build-isolation -e .`. It expects Elemental and MPSolve
+   `pip install --no-build-isolation -e .`. It expects Elemental
    under `$DEPS_PREFIX` (default `~/install`); extra arguments are passed to
    `waf configure`, `JOBS` sets the parallelism.
 
@@ -105,9 +111,9 @@ SDPB's full C++ tool chain.
 - If MPI programs print `Authorization required, but no authorization protocol
   specified`, that is X11 noise caused by a set `DISPLAY`; `unset DISPLAY`
   silences it.
-- The build links SDPB statically into the extension; the Elemental and
-  MPSolve shared libraries are found through an rpath, so they must stay where
-  they were at build time.
+- The build links SDPB statically into the extension; the Elemental shared
+  libraries are found through an rpath, so they must stay where they were at
+  build time.
 - The package runs on one MPI rank. Launching several processes with an
   `mpirun` or `srun` from a *different* MPI than the package links (the wheels
   bundle MPICH) does not create a multi-rank job: each process initialises MPI
@@ -138,8 +144,9 @@ SDPB's full C++ tool chain.
 ## How the wheels are made
 
 `.github/workflows/deps-image.yml` builds a `manylinux_2_28` Docker image with
-MPICH, GMP, MPFR, FLINT, Boost, OpenBLAS, the Elemental fork and MPSolve
-installed under `/opt/deps` (`docker/deps.Dockerfile`) and pushes it to
+MPICH, GMP, MPFR, FLINT, Boost, OpenBLAS and the Elemental fork
+installed under `/opt/deps` (`docker/deps.Dockerfile`, one build stage per
+library, cached in the registry so a change rebuilds only what depends on it) and pushes it to
 `ghcr.io/ypwang0818/sdpb-python-deps`. `.github/workflows/wheels.yml` then runs
 `cibuildwheel` in that image on every `v*` tag: it builds SDPB's static
 libraries once, builds the extension for each Python version, repairs the

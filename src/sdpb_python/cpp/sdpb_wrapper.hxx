@@ -33,9 +33,6 @@ namespace sdpb_python
   // Number of decimal digits that identify a value at the current precision.
   size_t max_digits10();
 
-  // Legacy: run the `sdpb` executable's main() logic with its argv.
-  void run(const std::vector<std::string> &args);
-
   // ---- problem specification ---------------------------------------------
 
   struct Damped_Rational_Spec

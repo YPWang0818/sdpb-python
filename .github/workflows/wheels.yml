@@ -7,6 +7,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag of the sdpb-python-deps image to build in (default: the one in pyproject.toml). Use manylinux_2_28-<branch> to try an image built from a branch."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -23,6 +28,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install cibuildwheel==3.2.1
+      - name: Use the dependency image given as input
+        if: github.event_name == 'workflow_dispatch' && inputs.image_tag != ''
+        run: echo "CIBW_MANYLINUX_X86_64_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sdpb-python-deps:${{ inputs.image_tag }}" >> "$GITHUB_ENV"
       - run: cibuildwheel --output-dir wheelhouse
       # The wheels must run on any x86-64 CPU, not just the AVX2 build host.
       - run: scripts/check_wheel_isa.sh wheelhouse/*.whl

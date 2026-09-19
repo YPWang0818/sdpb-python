@@ -6,7 +6,7 @@
 #   scripts/rebuild.sh --force    rebuild SDPB and the extension unconditionally
 #
 # Decides in three tiers:
-#   1. SDPB static libraries  (c-src/sdpb changed, or never built)   ~6 min
+#   1. SDPB static libraries  (c-src/sdpb changed, or never built)   ~3 min
 #   2. the Cython extension   (src/sdpb_python/cpp, *.pyx, *.pxd, setup.py,
 #                              or tier 1 rebuilt)                    ~3 min
 #   3. nothing                (pure-Python changes are live already)
@@ -58,9 +58,12 @@ fi
 if [ "$rebuild_sdpb" = 1 ]; then
   echo "== SDPB libraries: rebuilding ($why_sdpb)"
   cd "$SDPB"
-  if [ ! -f "$BUILD/c4che/_cache.py" ] || [ "$force" = 1 ]; then
-    CC=mpicc CXX=mpicxx CXXFLAGS="-fPIC" python3 ./waf configure \
-      --elemental-dir="$DEPS_PREFIX" --mpsolve-dir="$DEPS_PREFIX"
+  # (Re)configure when never configured, forced, or configured by an older
+  # version of this script for the full SDPB build instead of --libs-only.
+  if [ ! -f "$BUILD/c4che/_cache.py" ] || [ "$force" = 1 ] \
+     || ! grep -q '^LIBS_ONLY = True' "$BUILD/c4che/_cache.py"; then
+    CC=mpicc CXX=mpicxx CXXFLAGS="-fPIC" python3 ./waf configure --libs-only \
+      --elemental-dir="$DEPS_PREFIX"
   fi
   python3 ./waf build -j"$JOBS"
   echo "$sdpb_head" > "$STAMP"

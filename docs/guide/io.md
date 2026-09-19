@@ -29,10 +29,11 @@ Mathematica (`.m`) and XML inputs are not supported; convert them with SDPB's
   run `pmp2sdp` on the file.
 - **`sdpb`**: `pmp.solve(output_dir="out", checkpoint_dir="ck")` produces the
   same `iterations.json`, `c_minus_By/` and checkpoints as
-  `sdpb --outDir out --checkpointDir ck`. To run the executable itself from
-  Python on an existing `sdp/` directory, the legacy passthrough
-  {func}`sdpb_python.solve_dir` calls SDPB's `main` logic in-process and
-  parses its `out.txt`.
+  `sdpb --outDir out --checkpointDir ck`. Reading an existing `sdp/`
+  directory or `sdp.zip` is not supported: the extension is built without
+  SDPB's file input (and without libarchive). `solve_dir`, which did that
+  through SDPB's command-line code, was removed in 0.3.0; start from the
+  `pmp.json` instead ({func}`sdpb_python.read_pmp_json`).
 - **`spectrum`**: needs `pmp_info.json` from an `sdp/` directory produced by
   `pmp2sdp`, plus `c_minus_By.json` and `x_<j>.txt` from an `sdpb` output
   directory. `Solution.c_minus_By` and `Solution.x` hold the same numbers;

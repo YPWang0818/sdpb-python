@@ -15,7 +15,6 @@ cdef extern from "sdpb_wrapper.hxx" namespace "sdpb_python" nogil:
     size_t precision() except +
     size_t requested_precision() except +
     size_t max_digits10() except +
-    void run(const vector[string]& args) except +
 
     cdef cppclass Damped_Rational_Spec:
         string constant

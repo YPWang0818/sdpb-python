@@ -12,8 +12,7 @@ from .lmi import LMI
 from .options import SolverOptions
 from .problem import PMP, DampedRational, Polynomial, PolynomialMatrix, SDPData, SampledMatrix
 from .solution import BlockInfo, Solution, TerminateReason
-from .solver import SDPBResult, sdpb_version
-from .solver import solve as solve_dir
+from .solver import sdpb_version
 
 
 def set_precision(bits: int) -> None:
@@ -37,10 +36,10 @@ def precision() -> int:
 
     return _sdpb.requested_precision()
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 __all__ = [
     "PMP", "PolynomialMatrix", "Polynomial", "DampedRational", "LMI",
     "SolverOptions", "Solution", "TerminateReason", "BlockInfo", "SDPData", "SampledMatrix",
     "SDPBError", "Solver", "SolverInterrupted", "read_pmp_json", "write_pmp_json",
-    "sdpb_version", "solve_dir", "SDPBResult", "set_precision", "precision", "__version__",
+    "sdpb_version", "set_precision", "precision", "__version__",
 ]

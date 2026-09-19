@@ -218,13 +218,6 @@ def max_digits10() -> int:
     return cw.max_digits10()
 
 
-def run(args) -> None:
-    """Run the SDPB solver with ``sdpb``-style command line arguments."""
-    cdef vector[string] cargs = _strs(args)
-    with nogil:
-        cw.run(cargs)
-
-
 # ---------------------------------------------------------------- problems
 
 def default_solver_options() -> dict:

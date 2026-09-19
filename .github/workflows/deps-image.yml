@@ -3,6 +3,15 @@ name: deps-image
 # Builds the manylinux image with SDPB's dependencies preinstalled and pushes
 # it to the GitHub container registry.  Needed only when docker/deps.Dockerfile
 # changes; the wheels workflow uses the pushed image.
+#
+# On main the image is tagged :manylinux_2_28 (what pyproject.toml points at)
+# plus a dated copy.  Dispatched on any other branch it is tagged
+# :manylinux_2_28-<branch> only, so an image change can be tried (wheels
+# workflow, input `image_tag`) without replacing the image main builds with.
+#
+# The Dockerfile has one stage per dependency; their layers are kept in a
+# registry cache (:buildcache, mode=max keeps intermediate stages too), so a
+# change rebuilds only the stages downstream of it.
 on:
   workflow_dispatch:
   push:
@@ -28,14 +37,24 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
         run: |
-          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sdpb-python-deps" >> "$GITHUB_OUTPUT"
-          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sdpb-python-deps"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_NAME" = main ]; then
+            {
+              echo "tags<<EOF"
+              echo "$image:manylinux_2_28"
+              echo "$image:manylinux_2_28-$(date -u +%Y%m%d)"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=$image:manylinux_2_28-${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/deps.Dockerfile
           push: true
           build-args: JOBS=4
-          tags: |
-            ${{ steps.meta.outputs.image }}:manylinux_2_28
-            ${{ steps.meta.outputs.image }}:manylinux_2_28-${{ steps.meta.outputs.date }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache,mode=max

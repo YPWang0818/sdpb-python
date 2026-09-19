@@ -52,10 +52,8 @@ Everything below is importable from `sdpb_python`.
    :members: to_str, from_str, digits_for
 ```
 
-## Legacy passthrough
+## Version
 
 ```{eval-rst}
-.. autofunction:: sdpb_python.solve_dir
-.. autoclass:: sdpb_python.SDPBResult
 .. autofunction:: sdpb_python.sdpb_version
 ```

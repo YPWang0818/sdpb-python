@@ -312,8 +312,11 @@ Internals of `solve_pmp` (single process, all blocks local):
 with `yp_to_y = I`, `primal_c_scale = 1`, `normalization = (1, 0, …, 0)` and
 `Block_Info(env, dims, verbosity)`.
 
-The existing `run(args)` passthrough (`sdpb` CLI in-process) stays as
-`sdpb_python.legacy.solve_dir` so the current end-to-end test keeps working.
+The `run(args)` passthrough (`sdpb` CLI in-process, exported as `solve_dir`)
+was removed in 0.3.0. It was the only user of SDPB's file input, and with it
+of libarchive and its dependencies (OpenSSL, zstd, lz4, bz2, acl, libxml2:
+26 MiB of the wheel) and of `SDPB_Parameters.cxx`, whose version banner
+includes the MPSolve, libxml2 and libarchive headers. See §6.1.
 
 ## 6. Fork patches (branch `python-api` of `YPWang0818/sdpb`)
 
@@ -364,11 +367,51 @@ stopped once could never run again in the same process.
 Not patched: `Solver_Parameters` defaults (helper lives in the shim), the
 `write_control_json` declaration mismatch (unused here).
 
+### 6.1 `--libs-only`: building without the tools' dependencies
+
+**P6 — `./waf configure --libs-only`** (`wscript`, `waf-tools/boost.py`,
+new `src/sdp_solve/file_input_disabled.cxx`)
+
+SDPB's configure step demands every package any of its programs uses, and its
+`wscript` has no optional dependency. The extension links four static
+libraries (`sdpb_util`, `pmp`, `pmp2sdp_lib`, `sdp_solve`) and uses none of:
+
+| Package | Used by | In the extension |
+|---|---|---|
+| MPSolve (GPL-3) | `spectrum` | no symbol; headers only in `SDPB_Parameters.cxx`'s version banner |
+| libxml2 | `pmp_read` (XML input) | no symbol; one dead `#include` in `SDP_Block_Data.cxx` (removed) |
+| libarchive (+ OpenSSL, zstd, lz4, bz2, acl) | reading/writing `sdp.zip` | only through the removed `solve_dir` |
+| Boost filesystem, iostreams, date_time, system, process | `write_sdp`, tests | no symbol (SDPB uses `std::filesystem`) |
+
+`--libs-only` registers only those four libraries, skips the MPSolve, libxml2
+and libarchive checks, asks Boost for `program_options` and `serialization`
+only, and leaves out the eight translation units that include libarchive
+(`Archive_Reader`, the four `read_*` files of `sdp_solve`, `write_sdp`,
+`Archive_Writer`, `Archive_Entry`). `SDP.cxx` and `Block_Info.cxx` define the
+file-reading constructors next to the in-memory ones, so their entry points
+(`read_objectives`, `read_normalization`, `read_block_data`,
+`Block_Info::read_block_info`) are defined in `file_input_disabled.cxx`, where
+they throw. No existing solver code is edited; a change of those signatures
+upstream shows up as a link error. `set_sdp_from_root` (introduced by P2) moved
+from `read_block_data.cxx` into its own file so that the in-memory constructor
+does not pull in the file reader. Without the option the build is unchanged.
+
+Kept, because the solver itself needs them: Elemental (with METIS), GMP, MPFR,
+FLINT (the big-integer `syrk` is the only path for the Schur complement),
+a CBLAS, RapidJSON (headers), Boost `program_options`/`serialization`/
+`stacktrace`, and MPI. Elemental has no serial mode, and a single-rank MPI
+stub would have to cover about sixty functions including shared-memory
+windows and user-defined reductions, so the wheels keep a network-less MPICH.
+
 ## 7. Build changes
 
 - `setup.py`: add `pmp` to the static libraries; link order
   `sdp_solve, pmp2sdp_lib, pmp, sdpb_util` (api-doc §1.1). Add the new shim
-  sources. Keep the four `src/sdpb/*.cxx` sources for the legacy passthrough.
+  sources. (Until 0.3.0 the four `src/sdpb/*.cxx` sources of the `sdpb`
+  program were compiled in for the CLI passthrough; they went with it.)
+- SDPB is configured with `--libs-only` (§6.1) by `scripts/build_sdpb.sh`,
+  `scripts/rebuild.sh` and `scripts/cibw_before_all.sh`; `setup.py` links what
+  waf recorded, minus the tool-only packages if it finds a full SDPB build.
 - `pyproject.toml`: runtime dependency `mpmath>=1.3`; optional `numpy`,
   `sympy` extras for input conveniences.
 - `.gitmodules` / submodule pointer: track branch `python-api`.
@@ -505,7 +548,7 @@ at 1024 bits as the fork uses:
 - `mpirun -n 2 python -c "import sdpb_python"` exits with the single-process
   message rather than hanging (subprocess test).
 - Leak check: 100 solves of `1d` in one process keep RSS flat.
-- The legacy passthrough test (`tests/test_solve.py`) keeps passing.
+- The extension links none of the tool-only libraries (`tests/test_package.py`, `ldd`).
 
 ### 9.4 Fork-side tests for the patches (Catch2, in `test/src/unit_tests/cases/`)
 

@@ -10,9 +10,11 @@ git config --global --add safe.directory '*'
 
 PY=/opt/python/cp312-cp312/bin/python
 cd "${1:-/project}/c-src/sdpb"
-CC=mpicc CXX=mpicxx CXXFLAGS="-fPIC" "$PY" ./waf configure \
+# --libs-only: just the four static libraries the extension links; the image
+# has no MPSolve, libxml2 or libarchive.
+CC=mpicc CXX=mpicxx CXXFLAGS="-fPIC" "$PY" ./waf configure --libs-only \
   --elemental-incdir="$DEPS/include" --elemental-libdir="$DEPS/lib64" \
-  --mpsolve-dir="$DEPS" --flint-dir="$DEPS" \
+  --flint-dir="$DEPS" \
   --gmpxx-dir="$DEPS" --mpfr-dir="$DEPS" --boost-dir="$DEPS" \
   --cblas-dir="$DEPS" --rapidjson-dir="$DEPS" \
   || { cat build/config.log; exit 1; }

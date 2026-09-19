@@ -48,9 +48,12 @@ def waf_cache() -> dict:
     return {k: v for k, v in env.items() if not k.startswith("__")}
 
 
-# MPSolve (GPL-3) is used only by SDPB's `spectrum` tool, which the extension
-# does not include, so it is neither linked nor needed at run time.
-EXCLUDED_PACKAGES = {"mpsolve"}
+# Packages that only SDPB's command-line tools and file-based SDP input use:
+# MPSolve (GPL-3, `spectrum`), libxml2 (XML input), libarchive (sdp.zip).  The
+# extension contains none of that code.  scripts/build_sdpb.sh configures SDPB
+# with --libs-only, which does not even look for them; they are excluded here as
+# well so that an extension built on top of a full SDPB build links the same way.
+EXCLUDED_PACKAGES = {"mpsolve", "libxml2", "libarchive"}
 
 
 def collect(env: dict, prefix: str) -> list:
@@ -89,9 +92,8 @@ sdpb_static_libs = ["sdp_solve", "pmp2sdp_lib", "pmp", "sdpb_util"]
 libraries = sdpb_static_libs + collect(env, "LIB") + collect(env, "STLIB")
 if not env:
     # Reasonable defaults when the waf cache is unavailable.
-    libraries += ["El", "boost_filesystem", "boost_system", "boost_program_options",
-                  "boost_date_time", "boost_serialization", "boost_iostreams",
-                  "gmpxx", "gmp", "mpfr", "flint", "archive", "xml2"]
+    libraries += ["El", "boost_program_options", "boost_serialization",
+                  "gmpxx", "gmp", "mpfr", "flint", "openblas"]
 
 
 def rel(path: Path) -> str:
@@ -99,20 +101,12 @@ def rel(path: Path) -> str:
     return os.path.relpath(path, ROOT).replace(os.sep, "/")
 
 
-# SDPB's ``sdpb`` executable sources (minus main.cxx) are compiled straight into the
-# extension, since waf only builds them into the binary, not into a library.
-sdpb_program_sources = [
-    rel(SDPB_SRC / "src" / "sdpb" / f)
-    for f in ("solve.cxx", "write_timing.cxx", "SDPB_Parameters.cxx", "save_solution.cxx")
-]
-
 extensions = [
     Extension(
         "sdpb_python._sdpb",
         sources=[
             rel(PKG / "_sdpb.pyx"),
             rel(PKG / "cpp" / "sdpb_wrapper.cxx"),
-            *sdpb_program_sources,
         ],
         include_dirs=include_dirs,
         library_dirs=library_dirs,

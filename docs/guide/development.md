@@ -9,8 +9,8 @@ directory.
 ## Prerequisites
 
 An editable install builds from source, so SDPB's C++ dependencies must be on
-the machine: MPI, Boost, GMP, MPFR, FLINT, libarchive, libxml2, RapidJSON, a
-CBLAS, plus the Elemental fork and MPSolve (by default under `~/install`).
+the machine: MPI, Boost, GMP, MPFR, FLINT, RapidJSON, a CBLAS, plus the
+Elemental fork (by default under `~/install`).
 {doc}`../building` is the tested recipe for Ubuntu 24.04. Without the
 dependencies, use the Docker variant at the end of this page.
 

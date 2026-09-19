@@ -7,11 +7,11 @@
 # compiled with -march=native on an AVX2 build host crashes with SIGILL on
 # older CPUs and on QEMU/KVM guests using the default CPU model (this happened
 # to libflint in v0.2.0).  Libraries that select their kernels at run time
-# (OpenBLAS, OpenSSL, libgfortran's ifunc matmul) legitimately contain AVX code
+# (OpenBLAS, libgfortran's ifunc matmul) legitimately contain AVX code
 # and are skipped.
 set -euo pipefail
 
-skip_re='^lib(openblas|crypto|ssl|gfortran)'
+skip_re='^lib(openblas|gfortran)'
 # VEX/EVEX-encoded mnemonics start with "v"; the letters after "v" rule out
 # the SSE "vmovd"-style legacy names, which do not exist.
 avx_re='^\s+[0-9a-f]+:\s+([0-9a-f]{2} )+\s*v[a-z0-9]+\s'

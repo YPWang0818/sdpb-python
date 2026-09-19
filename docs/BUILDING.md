@@ -7,11 +7,16 @@ fresh Ubuntu 24.04 machine.
 
 ```
 sudo apt-get install -y openmpi-bin libopenmpi-dev libgmp-dev libmpfr-dev \
-    libboost-all-dev libopenblas-dev libxml2-dev libarchive-dev rapidjson-dev \
-    libmetis-dev libflint-dev pkg-config bison flex cmake g++
+    libboost-dev libboost-program-options-dev libboost-serialization-dev \
+    libboost-stacktrace-dev libopenblas-dev rapidjson-dev \
+    libmetis-dev libflint-dev pkg-config cmake g++
 ```
 
 FLINT 3.0.1 from apt satisfies SDPB's minimum (2.8.0), so it is not built from source.
+
+This is what the Python extension needs. SDPB's command-line tools and its own
+test-suite (section 4) additionally need `libboost-all-dev libxml2-dev
+libarchive-dev bison flex` and MPSolve; none of that is used by the package.
 
 ## 2. Elemental (bootstrap-collaboration fork), installed to `~/install`
 
@@ -22,17 +27,7 @@ CC=mpicc CXX=mpicxx cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/install -DCMAKE_BUILD_
 make -j4 && make install
 ```
 
-## 3. MPSolve, installed to `~/install`
-
-```
-git clone --depth=1 https://github.com/robol/MPSolve.git
-cd MPSolve && ./autogen.sh
-CC=mpicc CXX=mpicxx ./configure --prefix=$HOME/install --disable-dependency-tracking \
-    --disable-examples --disable-ui --disable-graphical-debugger --disable-documentation
-make -j4 && make install
-```
-
-## 4. SDPB and the Python package
+## 3. SDPB and the Python package
 
 ```
 git clone --recurse-submodules git@github.com:YPWang0818/sdpb-python.git
@@ -45,22 +40,32 @@ scripts/build_sdpb.sh
 The submodule `c-src/sdpb` follows the fork's `python-api` branch (a few
 patches over upstream master, see `API_DESIGN.md` §6).
 
-The script configures waf with `CXXFLAGS=-fPIC` (required to link the static
-libraries into a Python shared object), builds SDPB, then runs
-`pip install -e .`.
+The script configures waf with `--libs-only` (only the four static libraries
+the extension links: no tools, no MPSolve, libxml2 or libarchive) and
+`CXXFLAGS=-fPIC` (required to link them into a Python shared object), builds
+them, then runs `pip install -e .`.
 
-## 5. Tests
-
-SDPB's own suite (unit tests need 6 MPI ranks, integration tests take ~8 min):
-
-```
-cd c-src/sdpb && ./test/run_all_tests.sh
-```
+## 4. Tests
 
 The Python package tests:
 
 ```
 pytest
+```
+
+SDPB's own suite is only of interest when changing the fork. It needs the full
+SDPB build, hence the extra packages named in section 1 and
+[MPSolve](https://github.com/robol/MPSolve) under `~/install`. The test script
+expects it in `build/`, which the package's `--libs-only` build also uses, so
+rebuild the latter afterwards (unit tests need 6 MPI ranks, integration tests
+take ~8 min):
+
+```
+cd c-src/sdpb
+CC=mpicc CXX=mpicxx CXXFLAGS=-fPIC python3 ./waf configure \
+    --elemental-dir=$HOME/install --mpsolve-dir=$HOME/install
+python3 ./waf build && ./test/run_all_tests.sh
+cd ../.. && scripts/rebuild.sh --force    # back to the --libs-only build
 ```
 
 ## Notes
