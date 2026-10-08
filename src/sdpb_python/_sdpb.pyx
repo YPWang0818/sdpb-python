@@ -8,6 +8,7 @@ Use :mod:`sdpb_python` for the public API.
 from libc.stdint cimport int64_t
 from libcpp cimport bool
 from libcpp.memory cimport unique_ptr
+from libcpp.pair cimport pair
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 
@@ -149,6 +150,11 @@ cdef cw.Solver_Options _options(dict d) except *:
     o.want_X = d["want_X"]
     o.want_Y = d["want_Y"]
     o.want_c_minus_By = d["want_c_minus_By"]
+    o.profile_path = _s(d.get("profile_path", ""))
+    o.profile_detail = d.get("profile_detail", 1)
+    o.profile_autosave = d.get("profile_autosave", False)
+    for key, value in d.get("profile_meta", []):
+        o.profile_meta.push_back(pair[string, string](_s(key), _s(value)))
     return o
 
 
@@ -172,6 +178,7 @@ cdef dict _py_solution(const cw.Solution_Data& s):
         "precision": s.precision,
         "dims": [s.dims[i] for i in range(s.dims.size())],
         "num_points": [s.num_points[i] for i in range(s.num_points.size())],
+        "profile_path": s.profile_path.decode(),
     }
 
 

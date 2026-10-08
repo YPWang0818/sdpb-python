@@ -5,6 +5,7 @@
 #include "pmp2sdp/Dual_Constraint_Group.hxx"
 #include "pmp2sdp/Output_SDP/Output_SDP.hxx"
 #include "sdp_solve/sdp_solve.hxx"
+#include "sdp_solve/SDP_Solver/run/profile_meta.hxx"
 #include "sdpb_util/Environment.hxx"
 #include "sdpb_util/Timers/Timers.hxx"
 #include "sdpb_util/copy_matrix.hxx"
@@ -14,6 +15,7 @@
 #include <El.hpp>
 
 #include <boost/program_options.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <chrono>
 #include <cmath>
@@ -556,6 +558,7 @@ namespace sdpb_python
         solver.save_checkpoint(parameters.checkpoint_out, verbosity,
                                to_property_tree(parameters));
 
+      Scoped_Timer collect_timer(timers, "collect");
       return collect(solver, sdp, block_info, o, to_str(reason),
                      runtime.count());
     }
@@ -568,8 +571,58 @@ namespace sdpb_python
       const Verbosity verbosity = to_verbosity(o.verbosity);
       const Solver_Parameters parameters = make_solver_parameters(o);
       const size_t N = sdp.dual_objective_b.Height();
+      Scoped_Timer ctor_timer(timers, "ctor");
       SDP_Solver solver(parameters, verbosity, false, block_info, grid, N);
+      ctor_timer.stop();
       return run_existing(solver, sdp, block_info, grid, o, timers);
+    }
+
+    // ---- profiling ---------------------------------------------------------
+
+    // Metadata and settings of the per-solve profile (Timers), see
+    // SDPB docs/Usage.md "Profiling". No-op unless a profile path is set.
+    void configure_profile(Timers &timers, const Solver_Options &o)
+    {
+      if(o.profile_path.empty())
+        return;
+      timers.set_detail(o.profile_detail);
+      if(o.profile_autosave)
+        timers.set_autosave_path(o.profile_path);
+      timers.set_meta("run_kind", profile_meta::json_string("sdpb_python"));
+      timers.set_meta("sdpb_python_version", profile_meta::json_string(version()));
+      {
+        const Solver_Parameters parameters = make_solver_parameters(o);
+        std::ostringstream parameters_json;
+        boost::property_tree::write_json(parameters_json,
+                                         to_property_tree(parameters), false);
+        timers.set_meta("parameters", parameters_json.str());
+      }
+      timers.set_meta("labels", profile_meta::to_json([&](auto &writer) {
+        writer.StartObject();
+        for(const auto &[key, value] : o.profile_meta)
+          {
+            writer.Key(key.c_str(), key.size());
+            writer.String(value.c_str(), value.size());
+          }
+        writer.EndObject();
+      }));
+    }
+
+    // Writes the profile if requested; never throws (used in catch blocks).
+    std::string write_profile_if_requested(const Timers &timers,
+                                           const Solver_Options &o) noexcept
+    {
+      if(o.profile_path.empty())
+        return "";
+      try
+        {
+          timers.write_profile(o.profile_path);
+          return o.profile_path;
+        }
+      catch(...)
+        {
+          return "";
+        }
     }
   }
 
@@ -630,10 +683,12 @@ namespace sdpb_python
       }
     };
 
-    Problem build_pmp_problem(const PMP_Spec &spec, const Verbosity verbosity,
-                              Timers &timers)
+    // PMP -> SDP (sampling, bilinear bases, dual constraint groups),
+    // block layout and the SDP object. Timed as "pmp2sdp" > {convert, ...}.
+    Problem build_problem_from_pmp(const Polynomial_Matrix_Program &pmp,
+                                   const Verbosity verbosity, Timers &timers)
     {
-      const Polynomial_Matrix_Program pmp = to_pmp(spec);
+      Scoped_Timer pmp2sdp_timer(timers, "pmp2sdp");
       const Output_SDP output_sdp(pmp, {"sdpb_python"}, timers);
 
       std::vector<size_t> dims, num_points;
@@ -643,9 +698,12 @@ namespace sdpb_python
           num_points.push_back(m.sample_points.size());
         }
       Problem p;
+      Scoped_Timer block_info_timer(timers, "block_info");
       p.block_info
         = std::make_unique<Block_Info>(env(), dims, num_points, 1, verbosity);
       p.grid = std::make_unique<El::Grid>(p.block_info->mpi_comm.value);
+      block_info_timer.stop();
+      Scoped_Timer sdp_ctor_timer(timers, "sdp_ctor");
 
       // groups in the order of block_info.block_indices
       std::vector<Dual_Constraint_Group> groups;
@@ -664,6 +722,15 @@ namespace sdpb_python
         output_sdp.objective_const, output_sdp.dual_objective_b, groups,
         output_sdp.normalization, *p.block_info, *p.grid);
       return p;
+    }
+
+    Problem build_pmp_problem(const PMP_Spec &spec, const Verbosity verbosity,
+                              Timers &timers)
+    {
+      Scoped_Timer parse_timer(timers, "parse_spec");
+      const Polynomial_Matrix_Program pmp = to_pmp(spec);
+      parse_timer.stop();
+      return build_problem_from_pmp(pmp, verbosity, timers);
     }
 
     Problem build_lmi_problem(const LMI_Spec &spec, const Verbosity verbosity)
@@ -723,8 +790,24 @@ namespace sdpb_python
     set_precision(o.precision);
     const Verbosity verbosity = to_verbosity(o.verbosity);
     Timers timers(env(), verbosity);
-    const Problem p = build_pmp_problem(spec, verbosity, timers);
-    return run_solver(*p.sdp, *p.block_info, *p.grid, o, timers);
+    configure_profile(timers, o);
+    try
+      {
+        Solution_Data out;
+        {
+          Scoped_Timer total_timer(timers, "solve_pmp");
+          const Problem p = build_pmp_problem(spec, verbosity, timers);
+          Scoped_Timer solver_timer(timers, "solver");
+          out = run_solver(*p.sdp, *p.block_info, *p.grid, o, timers);
+        }
+        out.profile_path = write_profile_if_requested(timers, o);
+        return out;
+      }
+    catch(...)
+      {
+        write_profile_if_requested(timers, o);
+        throw;
+      }
   }
 
   Solution_Data solve_lmi(const LMI_Spec &spec, const Solver_Options &o)
@@ -734,19 +817,41 @@ namespace sdpb_python
     set_precision(o.precision);
     const Verbosity verbosity = to_verbosity(o.verbosity);
     Timers timers(env(), verbosity);
-    const Problem p = build_lmi_problem(spec, verbosity);
+    configure_profile(timers, o);
     Solver_Options options = o;
     options.want_z = false;
-    return run_solver(*p.sdp, *p.block_info, *p.grid, options, timers);
+    try
+      {
+        Solution_Data out;
+        {
+          Scoped_Timer total_timer(timers, "solve_lmi");
+          Scoped_Timer build_timer(timers, "build_lmi");
+          const Problem p = build_lmi_problem(spec, verbosity);
+          build_timer.stop();
+          Scoped_Timer solver_timer(timers, "solver");
+          out = run_solver(*p.sdp, *p.block_info, *p.grid, options, timers);
+        }
+        out.profile_path = write_profile_if_requested(timers, options);
+        return out;
+      }
+    catch(...)
+      {
+        write_profile_if_requested(timers, options);
+        throw;
+      }
   }
 
   // ---- Solver handle -----------------------------------------------------
   struct Solver::Impl
   {
     Verbosity verbosity;
+    // One timer tree for the handle's lifetime: "handle_build", then one
+    // "handle_run" (attr k) per run(). The profile (if requested) is the
+    // cumulative tree, rewritten after every run().
     Timers timers;
     Problem problem;
     std::unique_ptr<SDP_Solver> solver;
+    int64_t run_count = 0;
     Impl(const Verbosity v) : verbosity(v), timers(env(), v) {}
     ~Impl() { solver.reset(); }
   };
@@ -771,6 +876,8 @@ namespace sdpb_python
     set_precision(o.precision);
     const Verbosity verbosity = to_verbosity(o.verbosity);
     impl = std::make_unique<Impl>(verbosity);
+    configure_profile(impl->timers, o);
+    Scoped_Timer build_timer(impl->timers, "handle_build");
     impl->problem = build_pmp_problem(spec, verbosity, impl->timers);
     impl->solver = make_sdp_solver(impl->problem, o, verbosity);
     has_normalization_ = impl->problem.sdp->normalization.has_value();
@@ -783,6 +890,8 @@ namespace sdpb_python
     set_precision(o.precision);
     const Verbosity verbosity = to_verbosity(o.verbosity);
     impl = std::make_unique<Impl>(verbosity);
+    configure_profile(impl->timers, o);
+    Scoped_Timer build_timer(impl->timers, "handle_build");
     impl->problem = build_lmi_problem(spec, verbosity);
     impl->solver = make_sdp_solver(impl->problem, o, verbosity);
     has_normalization_ = false;
@@ -797,9 +906,22 @@ namespace sdpb_python
     Solver_Options options = o;
     if(!has_normalization_)
       options.want_z = false;
-    Solution_Data out
-      = run_existing(*impl->solver, *impl->problem.sdp, *impl->problem.block_info,
-                     *impl->problem.grid, options, impl->timers);
+    Solution_Data out;
+    try
+      {
+        Scoped_Timer run_timer(
+          impl->timers, "handle_run",
+          {{"k", std::to_string(++impl->run_count)}});
+        out = run_existing(*impl->solver, *impl->problem.sdp,
+                           *impl->problem.block_info, *impl->problem.grid,
+                           options, impl->timers);
+      }
+    catch(...)
+      {
+        write_profile_if_requested(impl->timers, options);
+        throw;
+      }
+    out.profile_path = write_profile_if_requested(impl->timers, options);
     total_iterations_ += out.iterations;
     return out;
   }

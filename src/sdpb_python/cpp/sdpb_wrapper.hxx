@@ -151,6 +151,13 @@ namespace sdpb_python
     int verbosity = 0; // 0 none, 1 regular, 2 debug, 3 trace
     bool want_x = false, want_z = true, want_X = false, want_Y = false,
          want_c_minus_By = false;
+    // Profiling (see SDPB docs/Usage.md "Profiling"): if profile_path is not
+    // empty, the JSON profile of the solve is written there (also when the
+    // solve throws). profile_meta pairs land in meta.labels.
+    std::string profile_path;
+    int profile_detail = 1;
+    bool profile_autosave = false;
+    std::vector<std::pair<std::string, std::string>> profile_meta;
   };
   // Defaults from Solver_Parameters::options() (call after set_precision).
   Solver_Options default_solver_options();
@@ -170,6 +177,7 @@ namespace sdpb_python
     int64_t runtime_ms = 0;
     size_t precision = 0;
     std::vector<size_t> dims, num_points;
+    std::string profile_path; // where the profile was written, or empty
   };
 
   Solution_Data solve_pmp(const PMP_Spec &spec, const Solver_Options &options);

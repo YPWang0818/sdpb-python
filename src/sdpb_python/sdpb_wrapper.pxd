@@ -2,6 +2,7 @@
 from libc.stdint cimport int64_t
 from libcpp cimport bool
 from libcpp.string cimport string
+from libcpp.pair cimport pair
 from libcpp.vector cimport vector
 
 
@@ -118,6 +119,10 @@ cdef extern from "sdpb_wrapper.hxx" namespace "sdpb_python" nogil:
         bool want_X
         bool want_Y
         bool want_c_minus_By
+        string profile_path
+        int profile_detail
+        bool profile_autosave
+        vector[pair[string, string]] profile_meta
 
     Solver_Options default_solver_options() except +
 
@@ -140,6 +145,7 @@ cdef extern from "sdpb_wrapper.hxx" namespace "sdpb_python" nogil:
         size_t precision
         vector[size_t] dims
         vector[size_t] num_points
+        string profile_path
 
     Solution_Data solve_pmp(const PMP_Spec& spec, const Solver_Options& options) except +
     Solution_Data solve_lmi(const LMI_Spec& spec, const Solver_Options& options) except +
