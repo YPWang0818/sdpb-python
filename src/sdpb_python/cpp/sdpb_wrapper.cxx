@@ -581,11 +581,16 @@ namespace sdpb_python
     // ---- profiling ---------------------------------------------------------
 
     // Metadata and settings of the per-solve profile (Timers), see
-    // SDPB docs/Usage.md "Profiling". No-op unless a profile path is set.
+    // SDPB docs/Usage.md "Profiling". Without a profile path nobody reads
+    // the timer tree, so the timers are switched off: building the tree
+    // (~300 entries per iteration) costs a few percent of a small solve.
     void configure_profile(Timers &timers, const Solver_Options &o)
     {
       if(o.profile_path.empty())
-        return;
+        {
+          timers.set_detail(Timers::detail_off);
+          return;
+        }
       timers.set_detail(o.profile_detail);
       if(o.profile_autosave)
         timers.set_autosave_path(o.profile_path);
@@ -908,6 +913,9 @@ namespace sdpb_python
     Solver_Options options = o;
     if(!has_normalization_)
       options.want_z = false;
+    // A profile requested only at run time: record from this run on
+    if(!options.profile_path.empty() && !impl->timers.enabled())
+      configure_profile(impl->timers, options);
     Solution_Data out;
     try
       {

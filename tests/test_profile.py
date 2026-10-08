@@ -102,6 +102,23 @@ def test_profile_detail_and_autosave(pmp, tmp_path):
     assert not (tmp_path / "auto.json.tmp").exists()
 
 
+def test_handle_profile_requested_at_run(pmp, tmp_path):
+    """A handle built without a profile records nothing until a run asks for one
+    (the timers are off by default), then profiles from that run on."""
+    path = tmp_path / "late.json"
+    with pmp.solver(**ARGS) as solver:
+        first = solver.run(max_iterations=2)
+        assert first.profile_path is None
+        second = solver.run(profile_path=path)
+        assert second.optimal
+        assert second.profile_path == str(path)
+    doc = load(path)
+    runs = [t for t in doc["timers"] if t["name"] == "handle_run"]
+    assert [r["attrs"]["k"] for r in runs] == ["2"]
+    assert "handle_build" not in names(doc)
+    assert sum(1 for t in doc["timers"] if t["name"] == "iter") == second.iterations + 1
+
+
 def test_handle_profile_cumulative(pmp, tmp_path):
     path = tmp_path / "h.json"
     with pmp.solver(profile_path=path, **ARGS) as solver:

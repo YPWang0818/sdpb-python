@@ -126,6 +126,10 @@ sol = pmp.solve(profile_path="solve.json", profile_meta={"case": "e7", "node": "
 print(sol.profile_path)
 ```
 
+Without `profile_path` SDPB records no timers at all (building the timer tree
+costs a few percent of a small solve). A `Solver` handle created without a
+profile starts recording at the first `run(profile_path=...)`.
+
 `profile_detail=0` keeps only the coarse phase timers (a few thousand entries),
 `1` (default) adds the per-block kernel timers with their matrix shapes (about
 300 entries per iteration), `2` adds MPI barrier probes. `profile_autosave=True`
