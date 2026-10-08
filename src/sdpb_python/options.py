@@ -49,6 +49,10 @@ class SolverOptions:
         find_dual_feasible: Stop as soon as a dual feasible point is found.
         detect_primal_feasible_jump: Stop when the primal step length reaches 1.
         detect_dual_feasible_jump: Stop when the dual step length reaches 1.
+        fast_step_length: Compute the step lengths from a double-precision
+            smallest eigenvalue, verified by an arbitrary-precision Cholesky
+            (SDPB's ``--fastStepLength``); the exact eigensolver is used for
+            blocks that fail the check.  Default ``False``.
         max_shared_memory_bytes: Memory budget for the exact ``Q`` computation
             (``--maxSharedMemory``); ``0`` lets SDPB choose about half of the
             free RAM.  Accepts ints or strings such as ``"100K"`` / ``"64G"``.
@@ -99,6 +103,7 @@ class SolverOptions:
     find_dual_feasible: bool = False
     detect_primal_feasible_jump: bool = False
     detect_dual_feasible_jump: bool = False
+    fast_step_length: bool = False
     max_shared_memory_bytes: int = 0
     checkpoint_dir: str | os.PathLike | None = None
     checkpoint_interval: int = 3600
@@ -143,6 +148,7 @@ class SolverOptions:
             "find_dual_feasible": bool(self.find_dual_feasible),
             "detect_primal_feasible_jump": bool(self.detect_primal_feasible_jump),
             "detect_dual_feasible_jump": bool(self.detect_dual_feasible_jump),
+            "fast_step_length": bool(self.fast_step_length),
             "precision": bits,
             "duality_gap_threshold": to_str(self.duality_gap_threshold, bits),
             "primal_error_threshold": to_str(self.primal_error_threshold, bits),

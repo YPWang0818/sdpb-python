@@ -129,6 +129,7 @@ cdef cw.Solver_Options _options(dict d) except *:
     o.find_dual_feasible = d["find_dual_feasible"]
     o.detect_primal_feasible_jump = d["detect_primal_feasible_jump"]
     o.detect_dual_feasible_jump = d["detect_dual_feasible_jump"]
+    o.fast_step_length = d.get("fast_step_length", False)
     o.precision = d["precision"]
     o.duality_gap_threshold = _s(d["duality_gap_threshold"])
     o.primal_error_threshold = _s(d["primal_error_threshold"])

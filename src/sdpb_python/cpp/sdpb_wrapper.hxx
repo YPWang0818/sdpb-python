@@ -134,6 +134,7 @@ namespace sdpb_python
     bool find_primal_feasible = false, find_dual_feasible = false,
          detect_primal_feasible_jump = false,
          detect_dual_feasible_jump = false;
+    bool fast_step_length = false;
     size_t precision = 400;
     std::string duality_gap_threshold = "1e-30",
                 primal_error_threshold = "1e-30",

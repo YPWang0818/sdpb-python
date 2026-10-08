@@ -418,6 +418,7 @@ namespace sdpb_python
       p.find_dual_feasible = o.find_dual_feasible;
       p.detect_primal_feasible_jump = o.detect_primal_feasible_jump;
       p.detect_dual_feasible_jump = o.detect_dual_feasible_jump;
+      p.fast_step_length = o.fast_step_length;
       p.precision = o.precision;
       p.duality_gap_threshold = to_bigfloat(o.duality_gap_threshold);
       p.primal_error_threshold = to_bigfloat(o.primal_error_threshold);
@@ -658,6 +659,7 @@ namespace sdpb_python
     o.infeasible_centering_parameter
       = to_str(p.infeasible_centering_parameter);
     o.step_length_reduction = to_str(p.step_length_reduction);
+    o.fast_step_length = p.fast_step_length;
     o.max_complementarity = to_str(p.max_complementarity);
     o.min_primal_step = to_str(p.min_primal_step);
     o.min_dual_step = to_str(p.min_dual_step);

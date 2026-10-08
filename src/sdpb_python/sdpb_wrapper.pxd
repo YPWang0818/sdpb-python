@@ -98,6 +98,7 @@ cdef extern from "sdpb_wrapper.hxx" namespace "sdpb_python" nogil:
         bool find_dual_feasible
         bool detect_primal_feasible_jump
         bool detect_dual_feasible_jump
+        bool fast_step_length
         size_t precision
         string duality_gap_threshold
         string primal_error_threshold
