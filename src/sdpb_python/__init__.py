@@ -10,6 +10,7 @@ from .handle import Solver, SolverInterrupted
 from .io import read_pmp_json, write_pmp_json
 from .lmi import LMI
 from .options import SolverOptions
+from .pool import SDPBWorkerError, SolveCancelled, SolverPool, solve_many
 from .problem import PMP, DampedRational, Polynomial, PolynomialMatrix, SDPData, SampledMatrix
 from .solution import BlockInfo, Solution, TerminateReason
 from .solver import sdpb_version
@@ -41,5 +42,6 @@ __all__ = [
     "PMP", "PolynomialMatrix", "Polynomial", "DampedRational", "LMI",
     "SolverOptions", "Solution", "TerminateReason", "BlockInfo", "SDPData", "SampledMatrix",
     "SDPBError", "Solver", "SolverInterrupted", "read_pmp_json", "write_pmp_json",
+    "SolverPool", "solve_many", "SolveCancelled", "SDPBWorkerError",
     "sdpb_version", "set_precision", "precision", "__version__",
 ]

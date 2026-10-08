@@ -16,7 +16,7 @@ Decisions already taken:
 | Inputs | In-memory polynomial matrix programs (PMP) and in-memory linear matrix inequalities (LMI). File inputs (`pmp.json`, `sdp/`) and post-processing tools (`spectrum`, `approx_objective`) are out of scope for now. |
 | Fork | Patches to `YPWang0818/sdpb` are allowed (branch `python-api`, kept upstream-mergeable). |
 | Numbers | `mpmath.mpf` at the Python boundary. |
-| Parallelism | Single process, single MPI rank; the package starts no processes of its own. MPI is initialised because SDPB requires it, and `mpirun -n>1` is rejected. See §2.1. |
+| Parallelism | Single MPI rank per process; `mpirun -n>1` is rejected. A solve runs in the calling process; the opt-in `SolverPool` runs independent solves in `spawn` worker processes. See §2.1. |
 
 Constraints from the C++ side that shape the design (api-doc §2):
 
@@ -65,11 +65,21 @@ shim be unit-tested on its own.
 
 ### 2.1 Parallelism: what the package does and does not do
 
-The package adds **no process-level parallelism**. A solve runs in the calling
-process, on the calling thread. There is no `multiprocessing`, no
-`concurrent.futures`, no `fork`, no worker subprocess, and no MPI rank beyond
-the one the caller is already running in. Starting several solves at once is
-the caller's business, not the library's.
+A solve (`PMP.solve`, `LMI.solve`, a `Solver` handle) runs in the calling
+process, on the calling thread, and no MPI rank beyond the one the caller is
+already running in is ever used.
+
+The one exception is opt-in: `SolverPool` (and `solve_many`) runs independent
+solves in parallel in worker processes. SDPB's state is process-global (MPI,
+the precision, signal handlers), so parallel solves need processes, not
+threads. The pool starts its workers with the `"spawn"` method only (never
+`fork`, since the parent may have initialised MPI), removes MPI launcher
+variables from their environment so that each is a singleton MPI process,
+gives each one BLAS thread and the pool's precision, and sends a problem as
+the same strings `PMP.solve` passes to SDPB, so a pooled solve returns exactly
+the result of an in-process one. The parent loads neither SDPB nor MPI for
+the pool. Each worker is a separate MPI program and so opens its own MPI
+listener socket (MPICH's ch3:nemesis does so even for one process).
 
 MPI is inherited plumbing, not a feature of this API. SDPB is written as an MPI
 program: it spreads SDP blocks over ranks, uses Elemental for the distributed
@@ -85,7 +95,8 @@ keeps the code identical to the cluster build. Results are copied out through
 What does run in parallel sits below the API: the bundled OpenBLAS is a
 pthread build (`libopenblasp`), so the double-precision GEMMs inside a solve
 use every core, under `OPENBLAS_NUM_THREADS`. Users who want several solves at
-once run independent Python processes, each with its own `output_dir`.
+once use `SolverPool`, or run independent Python processes, each with its own
+`output_dir`.
 
 Two consequences follow, both implemented:
 

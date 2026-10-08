@@ -29,6 +29,17 @@ Everything below is importable from `sdpb_python`.
 .. autoexception:: sdpb_python.SDPBError
 ```
 
+## Parallel solves
+
+```{eval-rst}
+.. autoclass:: sdpb_python.SolverPool
+   :members: submit, map, cancel, cancel_all, close, terminate, pids
+.. autofunction:: sdpb_python.solve_many
+.. autoexception:: sdpb_python.SolveCancelled
+.. autoexception:: sdpb_python.SDPBWorkerError
+.. autofunction:: sdpb_python.pool.default_workers
+```
+
 ## Precision
 
 ```{eval-rst}

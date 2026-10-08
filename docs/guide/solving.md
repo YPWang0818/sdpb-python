@@ -58,12 +58,45 @@ sdpb.set_precision(768)       # do this first in scripts and notebooks
 sdpb.precision()              # 768
 ```
 
-To work at several precisions, use separate processes
-(`multiprocessing` with the `"spawn"` start method, or `subprocess`).
+To work at several precisions, use separate processes: a
+{class}`~sdpb_python.SolverPool` per precision (see below), or
+`multiprocessing` with the `"spawn"` start method.
 
 Results come back as `mpmath.mpf` created at the solver's precision. mpmath's
 global context is not changed; set `mpmath.mp.prec` (or use
 `mpmath.workprec`) before doing further high-precision arithmetic with them.
+
+## Many solves in parallel
+
+A process runs one solve at a time. {class}`~sdpb_python.SolverPool` runs
+independent solves in worker processes, one per physical core by default
+(capped by the available memory), each with one BLAS thread:
+
+```python
+from sdpb_python import SolverPool
+
+with SolverPool(workers=4, precision=768) as pool:
+    futures = [pool.submit(pmp, fast_step_length=True) for pmp in problems]
+    solutions = [f.result() for f in futures]      # or: pool.map(problems, ...)
+```
+
+`submit` returns a {class}`concurrent.futures.Future`; its result is the
+{class}`~sdpb_python.Solution`, or it raises the {class}`~sdpb_python.SDPBError`
+of the solve. A pooled solve gives bit for bit the result of `pmp.solve(...)`
+with the same options, whatever the number of workers. The precision is fixed
+per pool; `precision=` in the options must match it.
+
+`pool.cancel(future)` drops a queued solve, or stops a running one at the end
+of its current iteration (its future then raises
+{class}`~sdpb_python.SolveCancelled`); a solve that finishes before the request
+arrives keeps its result. If a worker dies (a crash, `MPI_Abort`, an OOM kill)
+its solve raises {class}`~sdpb_python.SDPBWorkerError` and the pool starts a new
+worker. Leaving the `with` block waits for the queued solves; an exception
+inside it (e.g. Ctrl-C) kills the workers instead.
+
+The workers are started with the `"spawn"` method, which re-imports the main
+module: in a script, create the pool under `if __name__ == "__main__":`.
+`solve_many(problems, workers=..., **options)` is the one-call form.
 
 ## Results
 

@@ -21,6 +21,10 @@ class SDPBError(RuntimeError):
         self.details = details
         super().__init__(summarize(details))
 
+    def __reduce__(self):
+        # Pickle (e.g. from a SolverPool worker) with the full text, not the summary
+        return (type(self), (self.details,))
+
     @property
     def location(self) -> str | None:
         """``file:line (function)`` of the SDPB source that threw, if known."""
