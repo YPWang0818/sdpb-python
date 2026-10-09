@@ -37,7 +37,7 @@ def precision() -> int:
 
     return _sdpb.requested_precision()
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "PMP", "PolynomialMatrix", "Polynomial", "DampedRational", "LMI",
     "SolverOptions", "Solution", "TerminateReason", "BlockInfo", "SDPData", "SampledMatrix",

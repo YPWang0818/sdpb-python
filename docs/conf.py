@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath("../src"))
 project = "sdpb-python"
 author = "YPWang0818"
 copyright = "2026, YPWang0818"
-release = "0.3.0"
+release = "0.4.0"
 
 extensions = [
     "myst_parser",
