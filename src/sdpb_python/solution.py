@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 import mpmath
 
+from ._features import PROFILING
 from .numbers import from_str, matrix_mpfs, mpfs
 
 
@@ -85,8 +86,6 @@ class Solution:
         runtime_seconds: Wall time of the run.
         precision: Bits of precision used.
         blocks: :class:`BlockInfo` per block.
-        profile_path: The profile file written for this solve
-            (``SolverOptions.profile_path``), or ``None``.
     """
 
     status: TerminateReason
@@ -105,7 +104,10 @@ class Solution:
     runtime_seconds: float
     precision: int
     blocks: list[BlockInfo] = field(default_factory=list)
-    profile_path: str | None = None
+    if PROFILING:
+        # The profile file written for this solve (SolverOptions.profile_path),
+        # or None; only in builds with the profiling feature (_features.py).
+        profile_path: str | None = None
 
     @property
     def optimal(self) -> bool:
@@ -139,5 +141,5 @@ class Solution:
             runtime_seconds=d["runtime_ms"] / 1000.0,
             precision=bits,
             blocks=[BlockInfo(dim, n) for dim, n in zip(d["dims"], d["num_points"])],
-            profile_path=d.get("profile_path") or None,
+            **({"profile_path": d.get("profile_path") or None} if PROFILING else {}),
         )

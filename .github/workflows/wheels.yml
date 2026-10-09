@@ -6,8 +6,10 @@ name: wheels
 #
 # Run by hand on the `profiling` branch, it builds a preview for testers: the
 # version becomes a development release (scripts/stamp_dev_version.sh, e.g.
-# 0.3.1.dev12; nothing is committed) and the wheels replace those of the
-# pre-release `profiling-latest`, which is never marked as the latest release.
+# 0.3.1.dev12; nothing is committed), the profiling options are turned on
+# (sdpb_python/_profiling_enabled.py, see _features.py; release wheels leave
+# them out), and the wheels replace those of the pre-release `profiling-latest`,
+# which is never marked as the latest release.
 # Testers install with
 #   pip install --pre --upgrade sdpb-python --find-links \
 #     https://github.com/<owner>/sdpb-python/releases/expanded_assets/profiling-latest
@@ -38,10 +40,12 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install cibuildwheel==3.2.1
-      - name: Stamp a development version (profiling preview)
+      - name: Stamp a development version and turn profiling on (profiling preview)
         id: preview
         if: env.PREVIEW == 'true'
-        run: echo "version=$(scripts/stamp_dev_version.sh)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(scripts/stamp_dev_version.sh)" >> "$GITHUB_OUTPUT"
+          : > src/sdpb_python/_profiling_enabled.py
       - name: Use the dependency image given as input
         if: github.event_name == 'workflow_dispatch' && inputs.image_tag != ''
         run: echo "CIBW_MANYLINUX_X86_64_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sdpb-python-deps:${{ inputs.image_tag }}" >> "$GITHUB_ENV"

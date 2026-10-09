@@ -8,6 +8,7 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
+from ._features import PROFILING
 from .numbers import to_str
 
 VERBOSITY = {"none": 0, "regular": 1, "debug": 2, "trace": 3}
@@ -71,18 +72,6 @@ class SolverOptions:
             errors: any of ``"x"``, ``"y"``, ``"z"``, ``"X"``, ``"Y"``,
             ``"c_minus_By"``.  Default ``("y", "z")``.  Large problems have
             large ``X``/``Y``; ask only for what you need.
-        profile_path: If set, SDPB's per-solve profile (valid JSON: the timer
-            tree of ``parse_spec`` / ``pmp2sdp`` / ``solver`` with matrix
-            shapes and run metadata, see SDPB's ``docs/Usage.md``,
-            "Profiling") is written to this file after the solve, also when
-            the solve raises.  ``Solution.profile_path`` echoes it.
-        profile_detail: ``0`` coarse phase timers only, ``1`` (default) also
-            per-block kernel timers with shapes, ``2`` additional MPI barrier
-            probes.  Only used when ``profile_path`` is set.
-        profile_autosave: Also rewrite the profile every 10 iterations and at
-            checkpoints, so a killed solve leaves data (default ``False``).
-        profile_meta: Free labels (``str`` -> ``str``) stored under
-            ``meta.labels`` of the profile, e.g. the case and node of a search.
     """
 
     precision: int | None = None  # None: the process precision if fixed, else SDPB's 400
@@ -110,10 +99,23 @@ class SolverOptions:
     output_dir: str | os.PathLike | None = None
     verbosity: str | int = "none"
     want: Iterable[str] = ("y", "z")
-    profile_path: str | os.PathLike | None = None
-    profile_detail: int = 1
-    profile_autosave: bool = False
-    profile_meta: Mapping[str, str] | None = None
+    if PROFILING:
+        # Profiling options, only in builds with the profiling feature
+        # (sdpb_python/_features.py):
+        # profile_path: if set, SDPB's per-solve profile (valid JSON: the timer
+        #     tree of parse_spec / pmp2sdp / solver with matrix shapes and run
+        #     metadata, see SDPB's docs/Usage.md, "Profiling") is written to
+        #     this file after the solve, also when the solve raises;
+        #     Solution.profile_path echoes it.
+        # profile_detail: 0 coarse phase timers only, 1 (default) also
+        #     per-block kernel timers with shapes, 2 MPI barrier probes.
+        # profile_autosave: also rewrite the profile every 10 iterations and
+        #     at checkpoints, so a killed solve leaves data.
+        # profile_meta: free labels (str -> str) stored under meta.labels.
+        profile_path: str | os.PathLike | None = None
+        profile_detail: int = 1
+        profile_autosave: bool = False
+        profile_meta: Mapping[str, str] | None = None
 
     def replace(self, **overrides: Any) -> "SolverOptions":
         unknown = set(overrides) - {f.name for f in dataclasses.fields(self)}
@@ -139,7 +141,7 @@ class SolverOptions:
             checkpoint_out = ""
         else:
             checkpoint_in = checkpoint_out = os.fspath(self.checkpoint_dir)
-        return {
+        out = {
             "max_iterations": int(self.max_iterations),
             "max_runtime": int(self.max_runtime),
             "checkpoint_interval": int(self.checkpoint_interval),
@@ -170,11 +172,15 @@ class SolverOptions:
             "want_X": "X" in want,
             "want_Y": "Y" in want,
             "want_c_minus_By": "c_minus_By" in want,
-            "profile_path": "" if self.profile_path is None else os.fspath(self.profile_path),
-            "profile_detail": int(self.profile_detail),
-            "profile_autosave": bool(self.profile_autosave),
-            "profile_meta": sorted((str(k), str(v)) for k, v in (self.profile_meta or {}).items()),
         }
+        if PROFILING:
+            out.update({
+                "profile_path": "" if self.profile_path is None else os.fspath(self.profile_path),
+                "profile_detail": int(self.profile_detail),
+                "profile_autosave": bool(self.profile_autosave),
+                "profile_meta": sorted((str(k), str(v)) for k, v in (self.profile_meta or {}).items()),
+            })
+        return out
 
 
 _UNITS = {"": 1, "B": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}

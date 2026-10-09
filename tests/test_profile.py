@@ -1,10 +1,17 @@
-"""Per-solve profiles (SolverOptions.profile_path / profile_detail / profile_meta)."""
+"""Per-solve profiles (SolverOptions.profile_path / profile_detail / profile_meta).
 
+The profiling options exist only in builds with the profiling feature
+(sdpb_python/_features.py: preview builds and development checkouts with
+src/sdpb_python/_profiling_enabled.py); release builds must not have them.
+"""
+
+import dataclasses
 import json
 
 import pytest
 
-from sdpb_python import PMP, Polynomial, PolynomialMatrix, SDPBError, SolverOptions, read_pmp_json
+from sdpb_python import PMP, Polynomial, PolynomialMatrix, SDPBError, Solution, SolverOptions, read_pmp_json
+from sdpb_python._features import PROFILING
 from tests.util.datasets import DATA, TEST_PRECISION, STANDARD_ARGS
 
 ONE_D = DATA / "1d" / "input" / "pmp.json"
@@ -31,6 +38,23 @@ def parent_name(doc, name):
     return by_id[node["parent"]]["name"] if node["parent"] >= 0 else None
 
 
+profiling_only = pytest.mark.skipif(not PROFILING, reason="profiling feature not in this build")
+
+
+@pytest.mark.skipif(PROFILING, reason="this build has the profiling feature")
+def test_release_build_has_no_profiling_api(sdpb_ext):
+    names = {f.name for f in dataclasses.fields(SolverOptions)} | {f.name for f in dataclasses.fields(Solution)}
+    assert not {n for n in names if n.startswith("profile")}
+    with pytest.raises(TypeError):
+        SolverOptions(profile_path="p.json")
+    with pytest.raises(TypeError, match="unknown solver option"):
+        SolverOptions().replace(profile_detail=0)
+    assert not any(k.startswith("profile") for k in SolverOptions()._to_dict())
+    with pytest.raises(TypeError, match="unknown solver option"):
+        read_pmp_json(ONE_D).solve(profile_path="p.json", **ARGS)
+
+
+@profiling_only
 def test_options_to_dict():
     d = SolverOptions(profile_path="p.json", profile_detail=2, profile_autosave=True,
                       profile_meta={"case": "x", "node": 3})._to_dict()
@@ -41,6 +65,7 @@ def test_options_to_dict():
     assert SolverOptions()._to_dict()["profile_path"] == ""
 
 
+@profiling_only
 def test_profile_file_valid_json(pmp, tmp_path):
     path = tmp_path / "p.json"
     sol = pmp.solve(profile_path=path, profile_meta={"case": "t", "node": "3"}, **ARGS)
@@ -68,12 +93,14 @@ def test_profile_file_valid_json(pmp, tmp_path):
     assert sum(1 for t in doc["timers"] if t["name"] == "iter") == sol.iterations + 1  # + terminating iteration
 
 
+@profiling_only
 def test_profile_default_off(pmp, tmp_path):
     sol = pmp.solve(**ARGS)
     assert sol.profile_path is None
     assert list(tmp_path.iterdir()) == []
 
 
+@profiling_only
 def test_profile_on_error(sdpb_ext, tmp_path):
     """The profile is written even when the solve raises (Cholesky failure)."""
     failing = PMP(objective=[0, 1], normalization=[1, 0],
@@ -88,6 +115,7 @@ def test_profile_on_error(sdpb_ext, tmp_path):
     assert "iter" in names(doc)
 
 
+@profiling_only
 def test_profile_detail_and_autosave(pmp, tmp_path):
     coarse = pmp.solve(profile_path=tmp_path / "d0.json", profile_detail=0, **ARGS)
     fine = pmp.solve(profile_path=tmp_path / "d1.json", profile_detail=1, **ARGS)
@@ -102,6 +130,7 @@ def test_profile_detail_and_autosave(pmp, tmp_path):
     assert not (tmp_path / "auto.json.tmp").exists()
 
 
+@profiling_only
 def test_handle_profile_requested_at_run(pmp, tmp_path):
     """A handle built without a profile records nothing until a run asks for one
     (the timers are off by default), then profiles from that run on."""
@@ -119,6 +148,7 @@ def test_handle_profile_requested_at_run(pmp, tmp_path):
     assert sum(1 for t in doc["timers"] if t["name"] == "iter") == second.iterations + 1
 
 
+@profiling_only
 def test_handle_profile_cumulative(pmp, tmp_path):
     path = tmp_path / "h.json"
     with pmp.solver(profile_path=path, **ARGS) as solver:

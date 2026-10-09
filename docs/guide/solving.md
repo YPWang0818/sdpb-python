@@ -143,35 +143,6 @@ from a checkpoint continues the iteration where it left off, so a run
 interrupted after $k$ iterations and restarted reaches the optimum in $n - k$
 more iterations, where $n$ is the uninterrupted count.
 
-## Profiling
-
-With `profile_path="solve.json"`, SDPB's timer tree of the solve is written to
-that file (valid JSON; the format is documented in SDPB's `docs/Usage.md`,
-section "Profiling"). The root is `solve_pmp` with the children `parse_spec`
-(the Python strings to `BigFloat`), `pmp2sdp` (sampling and bilinear bases:
-`convert`, then `block_info` and `sdp_ctor`) and `solver` (`ctor`, SDPB's own
-`run` subtree with one `iter` node per iteration and the per-phase timers, and
-`collect` for converting the results back to strings). `meta` carries the
-problem shapes, the solver parameters (`meta.parameters`), and your labels:
-
-```python
-sol = pmp.solve(profile_path="solve.json", profile_meta={"case": "e7", "node": "3"})
-print(sol.profile_path)
-```
-
-Without `profile_path` SDPB records no timers at all (building the timer tree
-costs a few percent of a small solve). A `Solver` handle created without a
-profile starts recording at the first `run(profile_path=...)`.
-
-`profile_detail=0` keeps only the coarse phase timers (a few thousand entries),
-`1` (default) adds the per-block kernel timers with their matrix shapes (about
-300 entries per iteration), `2` adds MPI barrier probes. `profile_autosave=True`
-also rewrites the file every 10 iterations, so a killed solve leaves data. The
-file is written when the solve raises an `SDPBError` too. For a `Solver` handle
-the profile is cumulative: `handle_build` and one `handle_run` (attribute `k`)
-per `run()`, rewritten after every run. The analysis tools in SDPB's
-`scripts/profile/` read these files.
-
 ## Errors
 
 Problems with the Python-side description raise `ValueError` or `TypeError`.

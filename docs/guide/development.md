@@ -92,6 +92,12 @@ branch; `rebuild.sh` notices the new commit (or uncommitted edits) and
 rebuilds the libraries. The fork's own suite is
 `c-src/sdpb/test/run_all_tests.sh`.
 
+Performance work happens on the `profiling` branch (with the fork's
+`gpu-speedup-expr` branch) and uses SDPB's per-solve profiles, which release
+builds leave out. An empty file `src/sdpb_python/_profiling_enabled.py`
+(ignored by git) turns the profiling options on in a checkout; see
+`src/sdpb_python/_features.py`. Preview wheels of `profiling` are built with it.
+
 ## Without installing the dependencies: Docker
 
 The image used to build the release wheels is public and contains every

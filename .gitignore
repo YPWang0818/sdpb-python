@@ -25,3 +25,6 @@ docs/_build/
 
 # cibuildwheel output
 wheelhouse/
+
+# Turns the profiling options on in this checkout (see src/sdpb_python/_features.py)
+src/sdpb_python/_profiling_enabled.py
